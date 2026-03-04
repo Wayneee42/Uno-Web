@@ -1,0 +1,5 @@
+{
+  "window.zoomLevel": 2,       // 整体缩放（包括聊天）
+  "editor.fontSize": 10,
+  "kiroAgent.configureMCP": "Disabled"
+}
