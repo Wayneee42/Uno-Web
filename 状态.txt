@@ -1,0 +1,49 @@
+  项目结构
+
+  Uno/
+  ├── package.json              # Monorepo 根配置
+  ├── tsconfig.base.json        # 共享 TypeScript 配置
+  ├── .gitignore
+  ├── shared/                   # 共享类型定义
+  │   ├── package.json
+  │   ├── tsconfig.json
+  │   └── src/
+  │       ├── index.ts
+  │       └── types/
+  │           ├── card.ts       # Card, CardColor, CardValue 类型
+  │           ├── player.ts     # Player, PublicPlayer 类型
+  │           ├── game.ts       # GameState, ClientGameState 类型
+  │           └── events.ts     # Socket 事件定义
+  ├── client/                   # 前端 (Vite + React + TypeScript + Tailwind)
+  │   ├── package.json
+  │   ├── vite.config.ts
+  │   ├── tailwind.config.js
+  │   ├── index.html
+  │   └── src/
+  │       ├── main.tsx
+  │       ├── App.tsx
+  │       ├── index.css
+  │       ├── contexts/GameContext.tsx
+  │       └── pages/
+  │           ├── Lobby.tsx     # 大厅页面
+  │           └── Game.tsx      # 游戏页面
+  └── server/                   # 后端 (Node.js + Express + Socket.io)
+      ├── package.json
+      ├── tsconfig.json
+      └── src/
+          ├── index.ts
+          ├── game/
+          │   ├── RoomManager.ts   # 房间管理
+          │   ├── DeckManager.ts   # 牌堆管理
+          │   └── GameManager.ts   # 游戏逻辑
+          └── socket/
+              └── handlers.ts      # Socket 事件处理
+
+  已完成的功能
+
+  - 完整的类型系统 (Card, Player, GameState, ClientGameState)
+  - Socket.io 事件定义 (createRoom, joinRoom, playCard, drawCard, challenge 等)
+  - 房间管理（创建/加入/离开房间，3-4人限制）
+  - 牌堆系统（112张牌生成 + Fisher-Yates 洗牌）
+  - 游戏核心逻辑（出牌校验、抽牌、功能牌、+2/+4 叠加）
+  - 前端基础 UI（大厅、游戏页面骨架）
