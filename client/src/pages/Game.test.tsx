@@ -44,6 +44,7 @@ const baseState: ClientGameState = {
   challengeState: null,
   lastDrawnCardId: null,
   winnerId: null,
+  isDraw: false,
 };
 
 describe('Game', () => {

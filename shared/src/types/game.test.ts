@@ -37,6 +37,8 @@ const baseState: GameState = {
   initialEffectApplied: true,
   lastDrawnCardId: null,
   winnerId: null,
+  reshuffleCount: 0,
+  isDraw: false,
 };
 
 describe('game utils', () => {

@@ -115,7 +115,6 @@ export default function Game() {
   const [error, setError] = useState<string | null>(null);
   const [pendingWildCardId, setPendingWildCardId] = useState<string | null>(null);
   const [dealCards, setDealCards] = useState<DealCard[]>([]);
-  const [showDealer, setShowDealer] = useState(false);
   const [flyCard, setFlyCard] = useState<FlyCard | null>(null);
   const prevStateRef = useRef<ClientGameState | null>(null);
 
@@ -151,8 +150,6 @@ export default function Game() {
     if (relative === 2) return 'top';
     return 'right';
   };
-  const dealerSeat = getSeatForIndex(gameState.currentPlayerIndex);
-
   const otherSeats = useMemo(() => {
     const seats: Array<{ position: 'left' | 'top' | 'right'; player: ClientGameState['otherPlayers'][number] }> = [];
     for (const player of gameState.otherPlayers) {
@@ -180,7 +177,6 @@ export default function Game() {
   useEffect(() => {
     const prev = prevStateRef.current;
     let dealTimer: number | null = null;
-    let dealerTimer: number | null = null;
 
     if (!prev) {
       const counts = new Map<number, number>();
@@ -197,11 +193,14 @@ export default function Game() {
       for (let round = 0; round < maxCards; round += 1) {
         for (const index of playerIndices) {
           if ((counts.get(index) ?? 0) > round) {
-            sequence.push({
-              id: `deal-${index}-${round}`,
-              to: getSeatForIndex(index),
-              delay,
-            });
+            const seat = getSeatForIndex(index);
+            if (seat !== 'bottom') {
+              sequence.push({
+                id: `deal-${index}-${round}`,
+                to: seat,
+                delay,
+              });
+            }
             delay += 0.06;
           }
         }
@@ -209,12 +208,10 @@ export default function Game() {
 
       if (sequence.length > 0) {
         setDealCards(sequence);
-        const totalDurationMs = (delay + 0.4) * 1000;
+        const totalDurationMs = (delay + 0.5) * 1000;
         dealTimer = window.setTimeout(() => setDealCards([]), totalDurationMs);
       }
 
-      setShowDealer(true);
-      dealerTimer = window.setTimeout(() => setShowDealer(false), 1400);
     } else {
       if (gameState.lastPlayedCard && gameState.lastPlayedCard.id !== prev.lastPlayedCard?.id) {
         const from = getSeatForIndex(prev.currentPlayerIndex);
@@ -241,7 +238,6 @@ export default function Game() {
 
     return () => {
       if (dealTimer) window.clearTimeout(dealTimer);
-      if (dealerTimer) window.clearTimeout(dealerTimer);
     };
   }, [gameState, totalPlayers]);
 
@@ -372,7 +368,13 @@ export default function Game() {
         </div>
       )}
 
-      {isGameFinished && winnerName && (
+      {isGameFinished && gameState.isDraw && (
+        <div className="w-full max-w-3xl mb-4 bg-slate-700/40 text-slate-200 border border-slate-600/50 rounded-lg px-4 py-3 text-center font-semibold">
+          Game ended in a draw.
+        </div>
+      )}
+
+      {isGameFinished && !gameState.isDraw && winnerName && (
         <div className="w-full max-w-3xl mb-4 bg-emerald-400/10 text-emerald-200 border border-emerald-300/40 rounded-lg px-4 py-3 text-center font-semibold">
           {winnerName} wins.
         </div>
@@ -414,8 +416,8 @@ export default function Game() {
                 initial={{
                   left: POINTS.draw.x,
                   top: POINTS.draw.y,
-                  opacity: 0.8,
-                  scale: 0.8,
+                  opacity: 0.6,
+                  scale: 0.75,
                 }}
                 animate={{
                   left: POINTS[card.to].x,
@@ -425,8 +427,8 @@ export default function Game() {
                 }}
                 transition={{
                   delay: card.delay,
-                  duration: 0.4,
-                  ease: [0.2, 0.8, 0.2, 1],
+                  duration: 0.5,
+                  ease: [0.16, 1, 0.3, 1],
                 }}
               />
             ))}
@@ -441,7 +443,7 @@ export default function Game() {
                   left: POINTS[flyCard.from].x,
                   top: POINTS[flyCard.from].y,
                   opacity: 0.9,
-                  scale: 0.9,
+                  scale: 0.92,
                 }}
                 animate={{
                   left: POINTS[flyCard.to].x,
@@ -451,8 +453,8 @@ export default function Game() {
                 }}
                 transition={{
                   delay: flyCard.delay ?? 0,
-                  duration: 0.45,
-                  ease: [0.2, 0.8, 0.2, 1],
+                  duration: 0.5,
+                  ease: [0.16, 1, 0.3, 1],
                 }}
                 onAnimationComplete={() => setFlyCard(null)}
               >
@@ -463,21 +465,28 @@ export default function Game() {
             )}
           </AnimatePresence>
 
-          <AnimatePresence>
-            {showDealer && (
-              <motion.div
-                className="absolute px-3 py-1 rounded-full text-xs font-semibold bg-amber-400 text-slate-900 shadow-md"
-                style={{ left: POINTS[dealerSeat].x, top: POINTS[dealerSeat].y }}
-                initial={{ opacity: 0, scale: 0.6, y: -6 }}
-                animate={{ opacity: 1, scale: 1, y: -14 }}
-                exit={{ opacity: 0, scale: 0.8, y: -6 }}
-                transition={{ duration: 0.35, ease: 'easeOut' }}
-              >
-                Dealer
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
+
+        <AnimatePresence>
+          {dealCards.length > 0 && otherSeats.map(({ position, player }) => (
+            <motion.div
+              key={`deal-stack-${player.id}`}
+              className="absolute"
+              style={{ left: POINTS[position].x, top: POINTS[position].y }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              <div className="relative -translate-x-1/2 -translate-y-1/2">
+                <div className="w-10 h-14 rounded-md border border-slate-500/60 bg-slate-800 shadow-md" />
+                <div className="absolute -right-2 -top-2 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-900/80 border border-slate-600 text-slate-200">
+                  {player.handCount}
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
         {otherSeats.map(({ position, player }) => (
           <PlayerSeat

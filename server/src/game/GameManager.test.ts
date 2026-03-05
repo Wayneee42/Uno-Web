@@ -18,6 +18,7 @@ describe('GameManager', () => {
     expect(state.players.every(player => player.hand.length === 7)).toBe(true);
     expect(state.discardPile).toHaveLength(1);
     expect(state.discardPile[0].color).not.toBe('Wild');
+    expect(state.isDraw).toBe(false);
 
     const deckSize = createDeck().length;
     expect(totalHandCards + state.drawPile.length + state.discardPile.length).toBe(deckSize);

@@ -11,6 +11,7 @@ import { toClientGameState as toClientGameStateImport } from '@uno-web/shared';
 import { createDeck, shuffleDeck, canPlayCard } from './DeckManager';
 
 const HAND_SIZE = 7;
+const MAX_RESHUFFLES = 20;
 
 export class GameManager {
   private games: Map<string, GameState> = new Map();
@@ -75,6 +76,8 @@ export class GameManager {
       initialEffectApplied: false,
       lastDrawnCardId: null,
       winnerId: null,
+      isDraw: false,
+      reshuffleCount: 0,
     };
 
     this.games.set(roomId, state);
@@ -112,6 +115,9 @@ export class GameManager {
 
     if (state.pendingPenalty > 0) {
       const cards = this.drawCards(state, state.pendingPenalty);
+      if (state.phase === 'finished') {
+        return { success: true };
+      }
       const player = state.players.find(p => p.id === playerId)!;
       player.hand.push(...cards);
       this.syncUnoStatus(player);
@@ -121,7 +127,11 @@ export class GameManager {
       return { success: true, card: cards[0] };
     }
 
-    const card = this.drawCards(state, 1)[0];
+    const drawn = this.drawCards(state, 1);
+    if (state.phase === 'finished') {
+      return { success: true };
+    }
+    const card = drawn[0];
     const player = state.players.find(p => p.id === playerId)!;
     player.hand.push(card);
     this.syncUnoStatus(player);
@@ -208,6 +218,7 @@ export class GameManager {
     if (player.hand.length === 0) {
       state.phase = 'finished';
       state.winnerId = player.id;
+      state.isDraw = false;
       state.pendingPenalty = 0;
       state.challengeState = null;
       return { success: true };
@@ -287,6 +298,9 @@ export class GameManager {
 
     if (!challenged) {
       const cards = this.drawCards(state, state.pendingPenalty);
+      if (state.phase === 'finished') {
+        return { success: true };
+      }
       challenger.hand.push(...cards);
       this.syncUnoStatus(challenger);
       state.pendingPenalty = 0;
@@ -309,12 +323,18 @@ export class GameManager {
 
     if (hasMatchingCard) {
       const cards = this.drawCards(state, 4);
+      if (state.phase === 'finished') {
+        return { success: true };
+      }
       wildPlayer.hand.push(...cards);
       this.syncUnoStatus(wildPlayer);
       state.pendingPenalty = 0;
       state.challengeState.challengeSuccess = true;
     } else {
       const cards = this.drawCards(state, 6);
+      if (state.phase === 'finished') {
+        return { success: true };
+      }
       challenger.hand.push(...cards);
       this.syncUnoStatus(challenger);
       state.pendingPenalty = 0;
@@ -391,11 +411,19 @@ export class GameManager {
     const cards: Card[] = [];
     for (let i = 0; i < count; i++) {
       if (state.drawPile.length === 0) {
-        const topCard = state.discardPile.pop();
-        if (topCard) {
-          state.drawPile = shuffleDeck(state.discardPile);
-          state.discardPile = [topCard];
+        if (state.discardPile.length > 1 && state.reshuffleCount < MAX_RESHUFFLES) {
+          const topCard = state.discardPile.pop();
+          if (topCard) {
+            state.drawPile = shuffleDeck(state.discardPile);
+            state.discardPile = [topCard];
+            state.reshuffleCount += 1;
+          }
         } else {
+          state.phase = 'finished';
+          state.winnerId = null;
+          state.isDraw = true;
+          state.pendingPenalty = 0;
+          state.challengeState = null;
           break;
         }
       }
