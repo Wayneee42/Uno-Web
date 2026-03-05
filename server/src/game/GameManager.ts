@@ -6,8 +6,8 @@ import type {
   ChallengeState,
   PlayDirection,
   ClientGameState,
-  toClientGameState as toClientGameStateImport,
 } from '@uno-web/shared';
+import { toClientGameState as toClientGameStateImport } from '@uno-web/shared';
 import { createDeck, shuffleDeck, canPlayCard } from './DeckManager';
 
 const HAND_SIZE = 7;
@@ -15,7 +15,7 @@ const HAND_SIZE = 7;
 export class GameManager {
   private games: Map<string, GameState> = new Map();
 
-  createGame(roomId: string, players: Player[]): GameState {
+  createGame(roomId: string, players: Player[], hostId: string): GameState {
     let deck = shuffleDeck(createDeck());
     const dealerIndex = this.determineDealerIndex(deck, players.length);
     deck = shuffleDeck(deck);
@@ -68,7 +68,7 @@ export class GameManager {
       discardPile,
       activeColor: null,
       pendingPenalty,
-      hostId: players[0].id,
+      hostId,
       hasDrawnThisTurn: false,
       lastPlayedCard: null,
       challengeState: null,
@@ -257,12 +257,12 @@ export class GameManager {
       return { success: false, error: 'Player not found' };
     }
 
-    if (player.hand.length <= 2) {
+    if (player.hand.length === 1) {
       player.hasCalledUno = true;
       return { success: true };
     }
 
-    return { success: false, error: 'Can only call UNO with 2 or fewer cards' };
+    return { success: false, error: 'Can only call UNO with 1 card' };
   }
 
   handleChallenge(
@@ -408,6 +408,13 @@ export class GameManager {
   }
 
   private advanceTurn(state: GameState): void {
+    const previousPlayer = state.players[state.currentPlayerIndex];
+    if (previousPlayer.hand.length === 1 && !previousPlayer.hasCalledUno) {
+      const penaltyCards = this.drawCards(state, 2);
+      previousPlayer.hand.push(...penaltyCards);
+      this.syncUnoStatus(previousPlayer);
+    }
+
     state.currentPlayerIndex = this.getNextPlayerIndex(state);
     state.hasDrawnThisTurn = false;
     state.lastDrawnCardId = null;
@@ -417,7 +424,9 @@ export class GameManager {
   }
 
   private syncUnoStatus(player: Player): void {
-    player.hasCalledUno = player.hand.length === 1;
+    if (player.hand.length !== 1) {
+      player.hasCalledUno = false;
+    }
   }
 
   private getNextPlayerIndex(state: GameState): number {
@@ -455,45 +464,7 @@ export class GameManager {
   }
 
   toClientGameState(state: GameState, playerId: string): ClientGameState {
-    const myPlayerIndex = state.players.findIndex(p => p.id === playerId);
-    if (myPlayerIndex === -1) {
-      throw new Error(`Player ${playerId} not found in game`);
-    }
-
-    const myPlayer = state.players[myPlayerIndex];
-    const otherPlayers = state.players
-      .filter((_, index) => index !== myPlayerIndex)
-      .map(p => ({
-        id: p.id,
-        name: p.name,
-        playerIndex: state.players.findIndex(item => item.id === p.id),
-        handCount: p.hand.length,
-        status: p.status,
-        hasCalledUno: p.hasCalledUno,
-      }));
-
-    const topCard = state.discardPile[state.discardPile.length - 1];
-
-    return {
-      roomId: state.roomId,
-      phase: state.phase,
-      myPlayer,
-      otherPlayers,
-      currentPlayerIndex: state.currentPlayerIndex,
-      myPlayerIndex,
-      direction: state.direction,
-      directionChosen: state.directionChosen,
-      topCard,
-      drawPileCount: state.drawPile.length,
-      activeColor: state.activeColor,
-      pendingPenalty: state.pendingPenalty,
-      hostId: state.hostId,
-      hasDrawnThisTurn: state.hasDrawnThisTurn,
-      lastPlayedCard: state.lastPlayedCard,
-      challengeState: state.challengeState,
-      lastDrawnCardId: state.lastDrawnCardId,
-      winnerId: state.winnerId,
-    };
+    return toClientGameStateImport(state, playerId);
   }
 }
 

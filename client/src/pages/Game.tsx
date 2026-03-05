@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Card, CardColor, ClientGameState } from '@uno-web/shared';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
@@ -12,6 +12,33 @@ const COLOR_STYLES: Record<CardColor, string> = {
 };
 
 const COLOR_OPTIONS: CardColor[] = ['Red', 'Blue', 'Green', 'Yellow'];
+
+type SeatPosition = 'bottom' | 'left' | 'top' | 'right';
+type CardPoint = SeatPosition | 'draw' | 'discard';
+
+type FlyCard = {
+  id: string;
+  from: CardPoint;
+  to: CardPoint;
+  color: CardColor;
+  value: Card['value'];
+  delay?: number;
+};
+
+type DealCard = {
+  id: string;
+  to: SeatPosition;
+  delay: number;
+};
+
+const POINTS: Record<CardPoint, { x: string; y: string }> = {
+  draw: { x: '46%', y: '50%' },
+  discard: { x: '54%', y: '50%' },
+  bottom: { x: '50%', y: '82%' },
+  left: { x: '14%', y: '50%' },
+  top: { x: '50%', y: '16%' },
+  right: { x: '86%', y: '50%' },
+};
 
 function isPlayableCard(
   card: Card,
@@ -72,9 +99,25 @@ function PlayerSeat({
 }
 
 export default function Game() {
-  const { gameState, playCard, drawCard, endTurn, chooseDirection, challenge, leaveRoom } = useGame();
+  const {
+    gameState,
+    playCard,
+    drawCard,
+    endTurn,
+    chooseDirection,
+    challenge,
+    leaveRoom,
+    callUno,
+    returnToLobby,
+    systemMessage,
+    isConnected,
+  } = useGame();
   const [error, setError] = useState<string | null>(null);
   const [pendingWildCardId, setPendingWildCardId] = useState<string | null>(null);
+  const [dealCards, setDealCards] = useState<DealCard[]>([]);
+  const [showDealer, setShowDealer] = useState(false);
+  const [flyCard, setFlyCard] = useState<FlyCard | null>(null);
+  const prevStateRef = useRef<ClientGameState | null>(null);
 
   if (!gameState) {
     return (
@@ -92,9 +135,23 @@ export default function Game() {
   const needsDirection = !gameState.directionChosen;
   const challengePreviousColor = gameState.challengeState?.previousColor ?? null;
   const isGameFinished = gameState.phase === 'finished';
+  const isHost = gameState.myPlayer.id === gameState.hostId;
+  const canCallUno = isMyTurn && isLastCard && !gameState.myPlayer.hasCalledUno && !isGameFinished;
   const winnerName = gameState.winnerId === gameState.myPlayer.id
     ? gameState.myPlayer.name
     : gameState.otherPlayers.find(player => player.id === gameState.winnerId)?.name ?? null;
+  const getSeatForIndex = (playerIndex: number): SeatPosition => {
+    const relative = (playerIndex - gameState.myPlayerIndex + totalPlayers) % totalPlayers;
+    if (relative === 0) return 'bottom';
+    if (totalPlayers === 2) return 'top';
+    if (totalPlayers === 3) {
+      return relative === 1 ? 'left' : 'top';
+    }
+    if (relative === 1) return 'left';
+    if (relative === 2) return 'top';
+    return 'right';
+  };
+  const dealerSeat = getSeatForIndex(gameState.currentPlayerIndex);
 
   const otherSeats = useMemo(() => {
     const seats: Array<{ position: 'left' | 'top' | 'right'; player: ClientGameState['otherPlayers'][number] }> = [];
@@ -118,6 +175,74 @@ export default function Game() {
       }
     }
     return seats;
+  }, [gameState, totalPlayers]);
+
+  useEffect(() => {
+    const prev = prevStateRef.current;
+    let dealTimer: number | null = null;
+    let dealerTimer: number | null = null;
+
+    if (!prev) {
+      const counts = new Map<number, number>();
+      counts.set(gameState.myPlayerIndex, gameState.myPlayer.hand.length);
+      for (const player of gameState.otherPlayers) {
+        counts.set(player.playerIndex, player.handCount);
+      }
+
+      const playerIndices = Array.from(counts.keys()).sort((a, b) => a - b);
+      const maxCards = Math.max(...Array.from(counts.values()));
+      const sequence: DealCard[] = [];
+      let delay = 0;
+
+      for (let round = 0; round < maxCards; round += 1) {
+        for (const index of playerIndices) {
+          if ((counts.get(index) ?? 0) > round) {
+            sequence.push({
+              id: `deal-${index}-${round}`,
+              to: getSeatForIndex(index),
+              delay,
+            });
+            delay += 0.06;
+          }
+        }
+      }
+
+      if (sequence.length > 0) {
+        setDealCards(sequence);
+        const totalDurationMs = (delay + 0.4) * 1000;
+        dealTimer = window.setTimeout(() => setDealCards([]), totalDurationMs);
+      }
+
+      setShowDealer(true);
+      dealerTimer = window.setTimeout(() => setShowDealer(false), 1400);
+    } else {
+      if (gameState.lastPlayedCard && gameState.lastPlayedCard.id !== prev.lastPlayedCard?.id) {
+        const from = getSeatForIndex(prev.currentPlayerIndex);
+        setFlyCard({
+          id: `play-${gameState.lastPlayedCard.id}`,
+          from,
+          to: 'discard',
+          color: gameState.lastPlayedCard.color,
+          value: gameState.lastPlayedCard.value,
+        });
+      } else if (gameState.lastDrawnCardId && gameState.lastDrawnCardId !== prev.lastDrawnCardId) {
+        const to = getSeatForIndex(prev.currentPlayerIndex);
+        setFlyCard({
+          id: `draw-${gameState.lastDrawnCardId}`,
+          from: 'draw',
+          to,
+          color: 'Wild',
+          value: 'Wild',
+        });
+      }
+    }
+
+    prevStateRef.current = gameState;
+
+    return () => {
+      if (dealTimer) window.clearTimeout(dealTimer);
+      if (dealerTimer) window.clearTimeout(dealerTimer);
+    };
   }, [gameState, totalPlayers]);
 
   const handlePlayCard = async (card: Card) => {
@@ -184,12 +309,25 @@ export default function Game() {
           <h2 className="text-2xl font-bold">UNO Room</h2>
           <div className="text-slate-300 text-sm">
             {isGameFinished ? 'Game finished' : isMyTurn ? 'Your turn' : 'Waiting for other player'}
-            {gameState.pendingPenalty > 0 && ` · Pending +${gameState.pendingPenalty}`}
-            {gameState.activeColor && ` · Active ${gameState.activeColor}`}
-            {gameState.directionChosen && ` · Direction ${gameState.direction === 1 ? 'Clockwise' : 'Counterclockwise'}`}
+            {gameState.pendingPenalty > 0 && ` | Pending +${gameState.pendingPenalty}`}
+            {gameState.activeColor && ` | Active ${gameState.activeColor}`}
+            {gameState.directionChosen && ` | Direction ${gameState.direction === 1 ? 'Clockwise' : 'Counterclockwise'}`}
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {isGameFinished && isHost && (
+            <button
+              onClick={async () => {
+                const result = await returnToLobby();
+                if (!result.success) {
+                  setError(result.error || 'Failed to return to lobby');
+                }
+              }}
+              className="px-4 py-2 rounded-full bg-slate-700 hover:bg-slate-600"
+            >
+              Return to Lobby
+            </button>
+          )}
           <button
             onClick={leaveRoom}
             className="px-4 py-2 rounded-full bg-red-600 hover:bg-red-700"
@@ -199,6 +337,18 @@ export default function Game() {
         </div>
       </div>
 
+      {!isConnected && (
+        <div className="w-full max-w-3xl mb-4 bg-slate-800/80 text-slate-200 border border-slate-700 rounded-lg px-4 py-3">
+          Reconnecting to server...
+        </div>
+      )}
+
+      {systemMessage && (
+        <div className="w-full max-w-3xl mb-4 bg-blue-500/20 text-blue-200 border border-blue-500/40 rounded-lg px-4 py-3">
+          {systemMessage}
+        </div>
+      )}
+
       {error && (
         <div className="w-full max-w-3xl mb-4 bg-red-500/20 text-red-200 border border-red-500/40 rounded-lg px-4 py-3">
           {error}
@@ -207,7 +357,18 @@ export default function Game() {
 
       {isLastCard && (
         <div className="w-full max-w-3xl mb-4 bg-amber-400/10 text-amber-200 border border-amber-300/40 rounded-lg px-4 py-3 text-center font-semibold">
-          You have one card left.
+          {gameState.myPlayer.hasCalledUno ? 'UNO called.' : 'You have one card left.'}
+        </div>
+      )}
+
+      {canCallUno && (
+        <div className="w-full max-w-3xl mb-4 flex justify-center">
+          <button
+            onClick={callUno}
+            className="px-6 py-2 rounded-full bg-amber-400 text-slate-900 font-semibold hover:bg-amber-300"
+          >
+            Call UNO
+          </button>
         </div>
       )}
 
@@ -238,12 +399,86 @@ export default function Game() {
               </div>
             </div>
           ) : (
-            <div className="font-semibold">Dealer is choosing the play direction…</div>
+            <div className="font-semibold">Dealer is choosing the play direction.</div>
           )}
         </div>
       )}
 
       <div className="relative w-full max-w-6xl aspect-[16/9] bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-slate-800/80 rounded-3xl border border-slate-700/50 overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <AnimatePresence>
+            {dealCards.map((card) => (
+              <motion.div
+                key={card.id}
+                className="absolute w-12 h-16 rounded-lg border border-slate-500/60 bg-slate-800 shadow-lg"
+                initial={{
+                  left: POINTS.draw.x,
+                  top: POINTS.draw.y,
+                  opacity: 0.8,
+                  scale: 0.8,
+                }}
+                animate={{
+                  left: POINTS[card.to].x,
+                  top: POINTS[card.to].y,
+                  opacity: 1,
+                  scale: 1,
+                }}
+                transition={{
+                  delay: card.delay,
+                  duration: 0.4,
+                  ease: [0.2, 0.8, 0.2, 1],
+                }}
+              />
+            ))}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {flyCard && (
+              <motion.div
+                key={flyCard.id}
+                className={`absolute w-16 h-24 rounded-xl border border-slate-500/60 shadow-xl ${COLOR_STYLES[flyCard.color]}`}
+                initial={{
+                  left: POINTS[flyCard.from].x,
+                  top: POINTS[flyCard.from].y,
+                  opacity: 0.9,
+                  scale: 0.9,
+                }}
+                animate={{
+                  left: POINTS[flyCard.to].x,
+                  top: POINTS[flyCard.to].y,
+                  opacity: 1,
+                  scale: 1,
+                }}
+                transition={{
+                  delay: flyCard.delay ?? 0,
+                  duration: 0.45,
+                  ease: [0.2, 0.8, 0.2, 1],
+                }}
+                onAnimationComplete={() => setFlyCard(null)}
+              >
+                <span className="absolute inset-0 flex items-center justify-center text-sm font-bold">
+                  {flyCard.value}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {showDealer && (
+              <motion.div
+                className="absolute px-3 py-1 rounded-full text-xs font-semibold bg-amber-400 text-slate-900 shadow-md"
+                style={{ left: POINTS[dealerSeat].x, top: POINTS[dealerSeat].y }}
+                initial={{ opacity: 0, scale: 0.6, y: -6 }}
+                animate={{ opacity: 1, scale: 1, y: -14 }}
+                exit={{ opacity: 0, scale: 0.8, y: -6 }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+              >
+                Dealer
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         {otherSeats.map(({ position, player }) => (
           <PlayerSeat
             key={player.id}
@@ -390,3 +625,4 @@ export default function Game() {
     </div>
   );
 }
+

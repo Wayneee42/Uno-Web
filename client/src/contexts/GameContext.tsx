@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type {
   ClientGameState,
@@ -15,11 +15,13 @@ interface GameContextValue {
   gameState: ClientGameState | null;
   playerId: string | null;
   isConnected: boolean;
+  systemMessage: string | null;
   createRoom: (playerName: string) => Promise<RoomInfo | null>;
   joinRoom: (roomId: string, playerName: string) => Promise<{ success: boolean; error?: string }>;
   leaveRoom: () => void;
   setReady: (ready: boolean) => void;
   startGame: () => Promise<{ success: boolean; error?: string }>;
+  returnToLobby: () => Promise<{ success: boolean; error?: string }>;
   playCard: (cardId: string, chosenColor?: ClientGameState['activeColor']) => Promise<{ success: boolean; error?: string }>;
   drawCard: () => Promise<{ success: boolean; error?: string }>;
   endTurn: () => Promise<{ success: boolean; error?: string }>;
@@ -36,11 +38,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [systemMessage, setSystemMessage] = useState<string | null>(null);
+  const messageTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const newSocket = io('http://localhost:3001', {
+    const serverUrl = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:3001';
+    const newSocket = io(serverUrl, {
       autoConnect: true,
     }) as GameSocket;
+
+    const pushSystemMessage = (message: string) => {
+      setSystemMessage(message);
+      if (messageTimeoutRef.current) {
+        window.clearTimeout(messageTimeoutRef.current);
+      }
+      messageTimeoutRef.current = window.setTimeout(() => setSystemMessage(null), 5000);
+    };
 
     newSocket.on('connect', () => {
       setIsConnected(true);
@@ -59,8 +72,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setRoom(null);
     });
 
+    newSocket.on('gameEnd', () => {
+      setGameState(null);
+    });
+
     newSocket.on('gameStateUpdate', (state) => {
       setGameState(state as ClientGameState);
+    });
+
+    newSocket.on('playerJoined', (player) => {
+      pushSystemMessage(`${player.name} joined the room.`);
+    });
+
+    newSocket.on('playerLeft', () => {
+      pushSystemMessage('A player left the room.');
     });
 
     newSocket.on('error', (error) => {
@@ -70,6 +95,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setSocket(newSocket);
 
     return () => {
+      if (messageTimeoutRef.current) {
+        window.clearTimeout(messageTimeoutRef.current);
+      }
       newSocket.close();
     };
   }, []);
@@ -113,6 +141,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
     if (!socket) return { success: false, error: 'Not connected' };
     return new Promise<{ success: boolean; error?: string }>((resolve) => {
       socket.emit('startGame', {}, resolve);
+    });
+  }, [socket]);
+
+  const returnToLobby = useCallback(async () => {
+    if (!socket) return { success: false, error: 'Not connected' };
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      socket.emit('returnToLobby', {}, resolve);
     });
   }, [socket]);
 
@@ -164,11 +199,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
         gameState,
         playerId,
         isConnected,
+        systemMessage,
         createRoom,
         joinRoom,
         leaveRoom,
         setReady,
         startGame,
+        returnToLobby,
         playCard,
         drawCard,
         endTurn,

@@ -55,6 +55,15 @@ export interface ChooseDirectionPayload {
   direction: PlayDirection;
 }
 
+/** Return to lobby payload */
+export interface ReturnToLobbyPayload {
+  // No extra params needed
+}
+
+/** Game end payload */
+export interface GameEndPayload {
+  reason?: string;
+}
 // ============= Server -> Client Events =============
 
 /** Error response */
@@ -90,11 +99,13 @@ export interface ClientToServerEvents {
   chooseDirection: (payload: ChooseDirectionPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
   callUno: (payload: CallUnoPayload) => void;
   challenge: (payload: ChallengePayload, callback: (response: { success: boolean; error?: string }) => void) => void;
+  returnToLobby: (payload: ReturnToLobbyPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
 }
 
 export interface ServerToClientEvents {
   roomUpdate: (room: RoomInfo) => void;
   gameStart: () => void;
+  gameEnd: (payload: GameEndPayload) => void;
   gameStateUpdate: (state: ClientGameState) => void;
   error: (payload: ErrorPayload) => void;
   playerJoined: (player: { id: string; name: string }) => void;
@@ -114,8 +125,10 @@ export const SOCKET_EVENTS = {
   CHOOSE_DIRECTION: 'chooseDirection',
   CALL_UNO: 'callUno',
   CHALLENGE: 'challenge',
+  RETURN_TO_LOBBY: 'returnToLobby',
   ROOM_UPDATE: 'roomUpdate',
   GAME_START: 'gameStart',
+  GAME_END: 'gameEnd',
   GAME_STATE_UPDATE: 'gameStateUpdate',
   ERROR: 'error',
   PLAYER_JOINED: 'playerJoined',

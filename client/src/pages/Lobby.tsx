@@ -2,7 +2,7 @@ import { useState } from 'react';
  import { useGame } from '../contexts/GameContext';
 
  export default function Lobby() {
-   const { isConnected, room, createRoom, joinRoom, setReady, startGame, playerId } = useGame();
+   const { isConnected, room, createRoom, joinRoom, setReady, startGame, playerId, systemMessage } = useGame();
    const [playerName, setPlayerName] = useState('');
    const [roomId, setRoomId] = useState('');
   const [error, setError] = useState('');
@@ -83,6 +83,9 @@ import { useState } from 'react';
             ))}
           </div>
 
+          {systemMessage && (
+            <div className="bg-blue-500/20 text-blue-300 rounded p-3 mb-4">{systemMessage}</div>
+          )}
           {error && (
             <div className="bg-red-500/20 text-red-400 rounded p-3 mb-4">{error}</div>
           )}
@@ -118,6 +121,9 @@ import { useState } from 'react';
       <h1 className="text-5xl font-bold text-white mb-8">UNO</h1>
 
       <div className="bg-slate-800 rounded-lg p-8 w-full max-w-md">
+        {systemMessage && (
+          <div className="bg-blue-500/20 text-blue-300 rounded p-3 mb-4">{systemMessage}</div>
+        )}
         {error && (
           <div className="bg-red-500/20 text-red-400 rounded p-3 mb-4">{error}</div>
         )}

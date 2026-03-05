@@ -147,8 +147,25 @@ export class RoomManager {
     return this.rooms.get(roomId);
   }
 
+  getRoomById(roomId: string): Room | undefined {
+    return this.rooms.get(roomId);
+  }
+
+  getRoomInfo(roomId: string): RoomInfo | null {
+    const room = this.rooms.get(roomId);
+    if (!room) return null;
+    return this.toRoomInfo(room);
+  }
+
   getRoomIdByPlayerId(playerId: string): string | undefined {
     return this.playerRoomMap.get(playerId);
+  }
+
+  resetReady(roomId: string): RoomInfo | null {
+    const room = this.rooms.get(roomId);
+    if (!room) return null;
+    room.readyPlayers.clear();
+    return this.toRoomInfo(room);
   }
 
   private toRoomInfo(room: Room): RoomInfo {
