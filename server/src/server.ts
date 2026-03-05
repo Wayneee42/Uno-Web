@@ -14,7 +14,7 @@ export function createApp() {
 export function createHttpServer() {
   const app = createApp();
   const httpServer = createServer(app);
-  const clientOrigin = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
+  const clientOrigin = process.env.CLIENT_ORIGIN ?? 'http://localhost:3000';
   const io = new Server(httpServer, {
     cors: {
       origin: clientOrigin,
