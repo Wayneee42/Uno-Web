@@ -20,6 +20,12 @@ interface GameContextValue {
   leaveRoom: () => void;
   setReady: (ready: boolean) => void;
   startGame: () => Promise<{ success: boolean; error?: string }>;
+  playCard: (cardId: string, chosenColor?: ClientGameState['activeColor']) => Promise<{ success: boolean; error?: string }>;
+  drawCard: () => Promise<{ success: boolean; error?: string }>;
+  endTurn: () => Promise<{ success: boolean; error?: string }>;
+  chooseDirection: (direction: ClientGameState['direction']) => Promise<{ success: boolean; error?: string }>;
+  callUno: () => void;
+  challenge: (challenge: boolean) => Promise<{ success: boolean; error?: string }>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -110,6 +116,46 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, [socket]);
 
+  const playCard = useCallback(async (cardId: string, chosenColor?: ClientGameState['activeColor']) => {
+    if (!socket) return { success: false, error: 'Not connected' };
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      socket.emit('playCard', { cardId, chosenColor: chosenColor ?? undefined }, resolve);
+    });
+  }, [socket]);
+
+  const drawCard = useCallback(async () => {
+    if (!socket) return { success: false, error: 'Not connected' };
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      socket.emit('drawCard', {}, resolve);
+    });
+  }, [socket]);
+
+  const endTurn = useCallback(async () => {
+    if (!socket) return { success: false, error: 'Not connected' };
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      socket.emit('endTurn', {}, resolve);
+    });
+  }, [socket]);
+
+  const chooseDirection = useCallback(async (direction: ClientGameState['direction']) => {
+    if (!socket) return { success: false, error: 'Not connected' };
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      socket.emit('chooseDirection', { direction }, resolve);
+    });
+  }, [socket]);
+
+  const callUno = useCallback(() => {
+    if (!socket) return;
+    socket.emit('callUno', {});
+  }, [socket]);
+
+  const challenge = useCallback(async (challengeValue: boolean) => {
+    if (!socket) return { success: false, error: 'Not connected' };
+    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+      socket.emit('challenge', { challenge: challengeValue }, resolve);
+    });
+  }, [socket]);
+
   return (
     <GameContext.Provider
       value={{
@@ -123,6 +169,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         leaveRoom,
         setReady,
         startGame,
+        playCard,
+        drawCard,
+        endTurn,
+        chooseDirection,
+        callUno,
+        challenge,
       }}
     >
       {children}

@@ -8,7 +8,7 @@ import type {
   ClientGameState,
   toClientGameState as toClientGameStateImport,
 } from '@uno-web/shared';
-import { createDeck, shuffleDeck, canPlayCard, hasPlayableCard, getHighestCardValue } from './DeckManager';
+import { createDeck, shuffleDeck, canPlayCard } from './DeckManager';
 
 const HAND_SIZE = 7;
 
@@ -16,7 +16,9 @@ export class GameManager {
   private games: Map<string, GameState> = new Map();
 
   createGame(roomId: string, players: Player[]): GameState {
-    const deck = shuffleDeck(createDeck());
+    let deck = shuffleDeck(createDeck());
+    const dealerIndex = this.determineDealerIndex(deck, players.length);
+    deck = shuffleDeck(deck);
 
     const gamePlayers = players.map(p => ({
       ...p,
@@ -46,17 +48,12 @@ export class GameManager {
       discardPile.push(firstCard);
     }
 
-    const initialDirection: PlayDirection = Math.random() < 0.5 ? 1 : -1;
-
-    let initialPlayerIndex = Math.floor(Math.random() * gamePlayers.length);
+    let initialPlayerIndex = dealerIndex;
 
     let pendingPenalty = 0;
     if (firstCard) {
       if (firstCard.value === 'Draw2') {
         pendingPenalty = 2;
-      } else if (firstCard.value === 'Skip') {
-        initialPlayerIndex = (initialPlayerIndex + initialDirection + gamePlayers.length) % gamePlayers.length;
-      } else if (firstCard.value === 'Reverse') {
       }
     }
 
@@ -65,7 +62,8 @@ export class GameManager {
       phase: 'playing',
       players: gamePlayers,
       currentPlayerIndex: initialPlayerIndex,
-      direction: initialDirection,
+      direction: 1,
+      directionChosen: false,
       drawPile: deck,
       discardPile,
       activeColor: null,
@@ -74,6 +72,8 @@ export class GameManager {
       hasDrawnThisTurn: false,
       lastPlayedCard: null,
       challengeState: null,
+      initialEffectApplied: false,
+      lastDrawnCardId: null,
       winnerId: null,
     };
 
@@ -90,6 +90,18 @@ export class GameManager {
   }
 
   drawCard(state: GameState, playerId: string): { success: boolean; error?: string; card?: Card } {
+    if (state.phase === 'finished') {
+      return { success: false, error: 'Game already finished' };
+    }
+
+    if (!state.directionChosen) {
+      return { success: false, error: 'Direction not chosen yet' };
+    }
+
+    if (state.challengeState && !state.challengeState.resolved) {
+      return { success: false, error: 'Challenge pending' };
+    }
+
     if (state.players[state.currentPlayerIndex].id !== playerId) {
       return { success: false, error: 'Not your turn' };
     }
@@ -102,7 +114,9 @@ export class GameManager {
       const cards = this.drawCards(state, state.pendingPenalty);
       const player = state.players.find(p => p.id === playerId)!;
       player.hand.push(...cards);
+      this.syncUnoStatus(player);
       state.pendingPenalty = 0;
+      state.lastDrawnCardId = null;
       this.advanceTurn(state);
       return { success: true, card: cards[0] };
     }
@@ -110,7 +124,16 @@ export class GameManager {
     const card = this.drawCards(state, 1)[0];
     const player = state.players.find(p => p.id === playerId)!;
     player.hand.push(card);
+    this.syncUnoStatus(player);
     state.hasDrawnThisTurn = true;
+    state.lastDrawnCardId = card.id;
+
+    const topCard = state.discardPile[state.discardPile.length - 1];
+    if (!canPlayCard(card, topCard, state.activeColor)) {
+      state.hasDrawnThisTurn = false;
+      state.lastDrawnCardId = null;
+      this.advanceTurn(state);
+    }
 
     return { success: true, card };
   }
@@ -121,6 +144,18 @@ export class GameManager {
     cardId: string,
     chosenColor?: CardColor
   ): { success: boolean; error?: string } {
+    if (state.phase === 'finished') {
+      return { success: false, error: 'Game already finished' };
+    }
+
+    if (!state.directionChosen) {
+      return { success: false, error: 'Direction not chosen yet' };
+    }
+
+    if (state.challengeState && !state.challengeState.resolved) {
+      return { success: false, error: 'Challenge pending' };
+    }
+
     const playerIndex = state.players.findIndex(p => p.id === playerId);
     if (playerIndex === -1) {
       return { success: false, error: 'Player not found' };
@@ -138,6 +173,15 @@ export class GameManager {
 
     const card = player.hand[cardIndex];
     const topCard = state.discardPile[state.discardPile.length - 1];
+    const previousColor = state.activeColor ?? topCard.color;
+
+    if (card.color === 'Wild' && (!chosenColor || chosenColor === 'Wild')) {
+      return { success: false, error: 'Must choose a color for wild card' };
+    }
+
+    if (state.hasDrawnThisTurn && state.lastDrawnCardId && card.id !== state.lastDrawnCardId) {
+      return { success: false, error: 'Can only play the card you just drew' };
+    }
 
     if (state.pendingPenalty > 0) {
       if (card.value !== 'Draw2' && card.value !== 'WildDraw4') {
@@ -145,21 +189,28 @@ export class GameManager {
       }
     }
 
-    if (!canPlayCard(card, topCard, state.activeColor)) {
+    if (state.pendingPenalty === 0 && !canPlayCard(card, topCard, state.activeColor)) {
       return { success: false, error: 'Cannot play this card' };
     }
 
     player.hand.splice(cardIndex, 1);
+    this.syncUnoStatus(player);
     state.discardPile.push(card);
     state.lastPlayedCard = card;
     state.hasDrawnThisTurn = false;
+    state.lastDrawnCardId = null;
     state.activeColor = null;
 
     if (card.color === 'Wild') {
-      if (!chosenColor || chosenColor === 'Wild') {
-        return { success: false, error: 'Must choose a color for wild card' };
-      }
-      state.activeColor = chosenColor;
+      state.activeColor = chosenColor ?? null;
+    }
+
+    if (player.hand.length === 0) {
+      state.phase = 'finished';
+      state.winnerId = player.id;
+      state.pendingPenalty = 0;
+      state.challengeState = null;
+      return { success: true };
     }
 
     if (card.value === 'Draw2') {
@@ -170,19 +221,12 @@ export class GameManager {
       state.challengeState = {
         challengerIndex: nextIndex,
         wildDraw4PlayerIndex: playerIndex,
+        previousColor,
         resolved: false,
         challengeSuccess: null,
       };
+      this.advanceTurn(state);
       return { success: true };
-    }
-
-    if (player.hand.length === 0) {
-      state.phase = 'finished';
-      state.winnerId = player.id;
-      return { success: true };
-    }
-
-    if (player.hand.length === 1 && !player.hasCalledUno) {
     }
 
     if (card.value === 'Skip') {
@@ -204,6 +248,10 @@ export class GameManager {
   }
 
   callUno(state: GameState, playerId: string): { success: boolean; error?: string } {
+    if (state.phase === 'finished') {
+      return { success: false, error: 'Game already finished' };
+    }
+
     const player = state.players.find(p => p.id === playerId);
     if (!player) {
       return { success: false, error: 'Player not found' };
@@ -222,6 +270,10 @@ export class GameManager {
     challengerId: string,
     challenged: boolean
   ): { success: boolean; error?: string } {
+    if (state.phase === 'finished') {
+      return { success: false, error: 'Game already finished' };
+    }
+
     if (!state.challengeState || state.challengeState.resolved) {
       return { success: false, error: 'No challenge in progress' };
     }
@@ -236,6 +288,7 @@ export class GameManager {
     if (!challenged) {
       const cards = this.drawCards(state, state.pendingPenalty);
       challenger.hand.push(...cards);
+      this.syncUnoStatus(challenger);
       state.pendingPenalty = 0;
       state.challengeState.resolved = true;
       state.challengeState.challengeSuccess = false;
@@ -243,14 +296,12 @@ export class GameManager {
       return { success: true };
     }
 
-    const topCardBeforeWild = state.discardPile[state.discardPile.length - 2];
     const wildCard = state.discardPile[state.discardPile.length - 1];
 
     let hasMatchingCard = false;
-    if (topCardBeforeWild && wildCard.color === 'Wild') {
-      const previousColor = state.activeColor || topCardBeforeWild.color;
+    if (wildCard.color === 'Wild') {
       hasMatchingCard = wildPlayer.hand.some(
-        card => card.color === previousColor && card.color !== 'Wild'
+        card => card.color === state.challengeState.previousColor && card.color !== 'Wild'
       );
     }
 
@@ -259,15 +310,79 @@ export class GameManager {
     if (hasMatchingCard) {
       const cards = this.drawCards(state, 4);
       wildPlayer.hand.push(...cards);
+      this.syncUnoStatus(wildPlayer);
       state.pendingPenalty = 0;
       state.challengeState.challengeSuccess = true;
     } else {
       const cards = this.drawCards(state, 6);
       challenger.hand.push(...cards);
+      this.syncUnoStatus(challenger);
       state.pendingPenalty = 0;
       state.challengeState.challengeSuccess = false;
     }
 
+    this.advanceTurn(state);
+    return { success: true };
+  }
+
+  chooseDirection(
+    state: GameState,
+    playerId: string,
+    direction: PlayDirection
+  ): { success: boolean; error?: string } {
+    if (state.phase === 'finished') {
+      return { success: false, error: 'Game already finished' };
+    }
+
+    if (state.directionChosen) {
+      return { success: false, error: 'Direction already chosen' };
+    }
+
+    if (state.players[state.currentPlayerIndex].id !== playerId) {
+      return { success: false, error: 'Only the dealer can choose direction' };
+    }
+
+    state.direction = direction;
+    state.directionChosen = true;
+
+    if (!state.initialEffectApplied) {
+      const firstCard = state.discardPile[state.discardPile.length - 1];
+      if (firstCard?.value === 'Reverse') {
+        state.direction = (state.direction * -1) as PlayDirection;
+      } else if (firstCard?.value === 'Skip') {
+        this.advanceTurn(state);
+      } else if (firstCard?.value === 'Draw2') {
+        state.pendingPenalty = Math.max(state.pendingPenalty, 2);
+      }
+      state.initialEffectApplied = true;
+    }
+
+    return { success: true };
+  }
+
+  endTurn(state: GameState, playerId: string): { success: boolean; error?: string } {
+    if (state.phase === 'finished') {
+      return { success: false, error: 'Game already finished' };
+    }
+
+    if (!state.directionChosen) {
+      return { success: false, error: 'Direction not chosen yet' };
+    }
+
+    if (state.challengeState && !state.challengeState.resolved) {
+      return { success: false, error: 'Challenge pending' };
+    }
+
+    if (state.players[state.currentPlayerIndex].id !== playerId) {
+      return { success: false, error: 'Not your turn' };
+    }
+
+    if (!state.hasDrawnThisTurn) {
+      return { success: false, error: 'Must draw before ending your turn' };
+    }
+
+    state.hasDrawnThisTurn = false;
+    state.lastDrawnCardId = null;
     this.advanceTurn(state);
     return { success: true };
   }
@@ -295,16 +410,48 @@ export class GameManager {
   private advanceTurn(state: GameState): void {
     state.currentPlayerIndex = this.getNextPlayerIndex(state);
     state.hasDrawnThisTurn = false;
+    state.lastDrawnCardId = null;
 
     const currentPlayer = state.players[state.currentPlayerIndex];
-    if (currentPlayer.hand.length > 1) {
-      currentPlayer.hasCalledUno = false;
-    }
+    this.syncUnoStatus(currentPlayer);
+  }
+
+  private syncUnoStatus(player: Player): void {
+    player.hasCalledUno = player.hand.length === 1;
   }
 
   private getNextPlayerIndex(state: GameState): number {
     const totalPlayers = state.players.length;
     return (state.currentPlayerIndex + state.direction + totalPlayers) % totalPlayers;
+  }
+
+  private determineDealerIndex(deck: Card[], totalPlayers: number): number {
+    let candidates = Array.from({ length: totalPlayers }, (_, index) => index);
+    const drawnCards: Card[] = [];
+
+    const getCardScore = (card: Card): number => {
+      if (card.color === 'Wild') return 0;
+      const numeric = parseInt(card.value, 10);
+      return Number.isNaN(numeric) ? 0 : numeric;
+    };
+
+    while (candidates.length > 1) {
+      const roundResults = candidates.map(index => {
+        const card = deck.pop();
+        if (card) {
+          drawnCards.push(card);
+        }
+        return { index, card, score: card ? getCardScore(card) : 0 };
+      });
+
+      const maxScore = Math.max(...roundResults.map(result => result.score));
+      candidates = roundResults
+        .filter(result => result.score === maxScore)
+        .map(result => result.index);
+    }
+
+    deck.push(...drawnCards);
+    return candidates[0] ?? 0;
   }
 
   toClientGameState(state: GameState, playerId: string): ClientGameState {
@@ -319,6 +466,7 @@ export class GameManager {
       .map(p => ({
         id: p.id,
         name: p.name,
+        playerIndex: state.players.findIndex(item => item.id === p.id),
         handCount: p.hand.length,
         status: p.status,
         hasCalledUno: p.hasCalledUno,
@@ -334,6 +482,7 @@ export class GameManager {
       currentPlayerIndex: state.currentPlayerIndex,
       myPlayerIndex,
       direction: state.direction,
+      directionChosen: state.directionChosen,
       topCard,
       drawPileCount: state.drawPile.length,
       activeColor: state.activeColor,
@@ -342,6 +491,7 @@ export class GameManager {
       hasDrawnThisTurn: state.hasDrawnThisTurn,
       lastPlayedCard: state.lastPlayedCard,
       challengeState: state.challengeState,
+      lastDrawnCardId: state.lastDrawnCardId,
       winnerId: state.winnerId,
     };
   }

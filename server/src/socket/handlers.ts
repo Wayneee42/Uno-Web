@@ -76,6 +76,30 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       callback({ success: true });
     });
 
+    socket.on('chooseDirection', (payload, callback) => {
+      console.log(`Choose direction request from ${socket.id}: ${payload.direction}`);
+      const roomId = roomManager.getRoomIdByPlayerId(socket.id);
+      if (!roomId) {
+        callback({ success: false, error: 'Not in a game' });
+        return;
+      }
+
+      const gameState = gameManager.getGame(roomId);
+      if (!gameState) {
+        callback({ success: false, error: 'Game not found' });
+        return;
+      }
+
+      const result = gameManager.chooseDirection(gameState, socket.id, payload.direction);
+      if (!result.success) {
+        callback(result);
+        return;
+      }
+
+      broadcastGameState(io, roomId, gameState);
+      callback({ success: true });
+    });
+
     socket.on('playCard', (payload, callback) => {
       console.log(`Play card request from ${socket.id}: ${payload.cardId}`);
       const roomId = roomManager.getRoomIdByPlayerId(socket.id);
@@ -117,6 +141,30 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       const result = gameManager.drawCard(gameState, socket.id);
       if (!result.success) {
         callback({ success: result.success, error: result.error });
+        return;
+      }
+
+      broadcastGameState(io, roomId, gameState);
+      callback({ success: true });
+    });
+
+    socket.on('endTurn', (_payload, callback) => {
+      console.log(`End turn request from ${socket.id}`);
+      const roomId = roomManager.getRoomIdByPlayerId(socket.id);
+      if (!roomId) {
+        callback({ success: false, error: 'Not in a game' });
+        return;
+      }
+
+      const gameState = gameManager.getGame(roomId);
+      if (!gameState) {
+        callback({ success: false, error: 'Game not found' });
+        return;
+      }
+
+      const result = gameManager.endTurn(gameState, socket.id);
+      if (!result.success) {
+        callback(result);
         return;
       }
 

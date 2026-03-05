@@ -23,10 +23,8 @@ export function createDeck(): Card[] {
   const deck: Card[] = [];
 
   for (const color of COLORS) {
-    deck.push(createCard(color, '0'));
-
     for (let i = 0; i < 2; i++) {
-      for (const value of NUMBER_VALUES.slice(1)) {
+      for (const value of NUMBER_VALUES) {
         deck.push(createCard(color, value));
       }
 

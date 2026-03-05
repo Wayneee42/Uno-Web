@@ -1,4 +1,5 @@
 import type { Card, CardColor } from './card';
+import type { ClientGameState, PlayDirection } from './game';
 
 // ============= Client -> Server Events =============
 
@@ -44,6 +45,16 @@ export interface StartGamePayload {
   // No extra params needed
 }
 
+/** End turn payload */
+export interface EndTurnPayload {
+  // No extra params needed
+}
+
+/** Choose direction payload */
+export interface ChooseDirectionPayload {
+  direction: PlayDirection;
+}
+
 // ============= Server -> Client Events =============
 
 /** Error response */
@@ -75,6 +86,8 @@ export interface ClientToServerEvents {
   startGame: (payload: StartGamePayload, callback: (response: { success: boolean; error?: string }) => void) => void;
   playCard: (payload: PlayCardPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
   drawCard: (payload: DrawCardPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
+  endTurn: (payload: EndTurnPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
+  chooseDirection: (payload: ChooseDirectionPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
   callUno: (payload: CallUnoPayload) => void;
   challenge: (payload: ChallengePayload, callback: (response: { success: boolean; error?: string }) => void) => void;
 }
@@ -82,7 +95,7 @@ export interface ClientToServerEvents {
 export interface ServerToClientEvents {
   roomUpdate: (room: RoomInfo) => void;
   gameStart: () => void;
-  gameStateUpdate: (state: unknown) => void;
+  gameStateUpdate: (state: ClientGameState) => void;
   error: (payload: ErrorPayload) => void;
   playerJoined: (player: { id: string; name: string }) => void;
   playerLeft: (playerId: string) => void;
@@ -97,6 +110,8 @@ export const SOCKET_EVENTS = {
   START_GAME: 'startGame',
   PLAY_CARD: 'playCard',
   DRAW_CARD: 'drawCard',
+  END_TURN: 'endTurn',
+  CHOOSE_DIRECTION: 'chooseDirection',
   CALL_UNO: 'callUno',
   CHALLENGE: 'challenge',
   ROOM_UPDATE: 'roomUpdate',

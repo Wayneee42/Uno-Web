@@ -24,6 +24,8 @@ export interface GameState {
   currentPlayerIndex: number;
   /** 出牌方向 */
   direction: PlayDirection;
+  /** 是否已由庄家选择方向 */
+  directionChosen: boolean;
   /** 抽牌堆 */
   drawPile: Card[];
   /** 弃牌堆 */
@@ -40,6 +42,10 @@ export interface GameState {
   lastPlayedCard: Card | null;
   /** +4 挑战相关 */
   challengeState: ChallengeState | null;
+  /** 是否已处理首张牌的效果 */
+  initialEffectApplied: boolean;
+  /** 本回合抽到的牌（抽牌后只能出这张） */
+  lastDrawnCardId: string | null;
   /** 获胜者 ID */
   winnerId: string | null;
 }
@@ -50,6 +56,7 @@ export interface ChallengeState {
   challengerIndex: number;  // 被罚的玩家（下家）
   /** 出 +4 的玩家索引 */
   wildDraw4PlayerIndex: number;
+  previousColor: CardColor;
   /** 是否已完成挑战 */
   resolved: boolean;
   /** 挑战结果 */
@@ -67,6 +74,7 @@ export interface ClientGameState {
   currentPlayerIndex: number;
   myPlayerIndex: number;
   direction: PlayDirection;
+  directionChosen: boolean;
   /** 弃牌堆顶部牌 */
   topCard: Card;
   /** 抽牌堆剩余数量 */
@@ -77,6 +85,7 @@ export interface ClientGameState {
   hasDrawnThisTurn: boolean;
   lastPlayedCard: Card | null;
   challengeState: ChallengeState | null;
+  lastDrawnCardId: string | null;
   winnerId: string | null;
 }
 
@@ -96,6 +105,7 @@ export function toClientGameState(
     .map(p => ({
       id: p.id,
       name: p.name,
+      playerIndex: state.players.findIndex(item => item.id === p.id),
       handCount: p.hand.length,
       status: p.status,
       hasCalledUno: p.hasCalledUno,
@@ -111,6 +121,7 @@ export function toClientGameState(
     currentPlayerIndex: state.currentPlayerIndex,
     myPlayerIndex,
     direction: state.direction,
+    directionChosen: state.directionChosen,
     topCard,
     drawPileCount: state.drawPile.length,
     activeColor: state.activeColor,
@@ -119,6 +130,7 @@ export function toClientGameState(
     hasDrawnThisTurn: state.hasDrawnThisTurn,
     lastPlayedCard: state.lastPlayedCard,
     challengeState: state.challengeState,
+    lastDrawnCardId: state.lastDrawnCardId,
     winnerId: state.winnerId,
   };
 }

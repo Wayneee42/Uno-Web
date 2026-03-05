@@ -23,16 +23,18 @@ export interface Player {
 export interface PublicPlayer {
   id: string;
   name: string;
+  playerIndex: number;
   handCount: number;
   status: PlayerStatus;
   hasCalledUno: boolean;
 }
 
 /** 将 Player 转换为 PublicPlayer */
-export function toPublicPlayer(player: Player): PublicPlayer {
+export function toPublicPlayer(player: Player, playerIndex: number): PublicPlayer {
   return {
     id: player.id,
     name: player.name,
+    playerIndex,
     handCount: player.hand.length,
     status: player.status,
     hasCalledUno: player.hasCalledUno,
