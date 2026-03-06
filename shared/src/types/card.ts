@@ -1,7 +1,7 @@
-/** 卡牌颜色 */
+/** Card color values. */
 export type CardColor = 'Red' | 'Blue' | 'Green' | 'Yellow' | 'Wild';
 
-/** 卡牌值 */
+/** Card face values. */
 export type CardValue =
   | '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9'
   | 'Skip'
@@ -10,37 +10,37 @@ export type CardValue =
   | 'Wild'
   | 'WildDraw4';
 
-/** 卡牌接口 */
+/** Core card model shared by client and server. */
 export interface Card {
-  /** 唯一标识符，洗牌时生成 */
+  /** Unique card identifier generated when creating the deck. */
   id: string;
-  /** 卡牌颜色 */
+  /** Card color. */
   color: CardColor;
-  /** 卡牌值 */
+  /** Card face value. */
   value: CardValue;
 }
 
-/** 判断卡牌是否为万能牌 */
+/** Returns true if the card is wild. */
 export function isWildCard(card: Card): boolean {
   return card.color === 'Wild';
 }
 
-/** 判断卡牌是否为功能牌 */
+/** Returns true if the card is a non-wild action card. */
 export function isActionCard(card: Card): boolean {
   return ['Skip', 'Reverse', 'Draw2'].includes(card.value);
 }
 
-/** 判断卡牌是否为 +2 牌 */
+/** Returns true if the card is Draw 2. */
 export function isDraw2Card(card: Card): boolean {
   return card.value === 'Draw2';
 }
 
-/** 判断卡牌是否为 +4 牌 */
+/** Returns true if the card is Wild Draw 4. */
 export function isWildDraw4Card(card: Card): boolean {
   return card.value === 'WildDraw4';
 }
 
-/** 判断卡牌是否为叠加牌 (+2 或 +4) */
+/** Returns true if the card can be used to stack penalties. */
 export function isStackableCard(card: Card): boolean {
   return isDraw2Card(card) || isWildDraw4Card(card);
 }

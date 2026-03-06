@@ -1,14 +1,14 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Card, CardColor, ClientGameState } from '@uno-web/shared';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 
 const COLOR_STYLES: Record<CardColor, string> = {
-  Red: 'bg-red-500',
-  Blue: 'bg-blue-500',
-  Green: 'bg-emerald-500',
-  Yellow: 'bg-amber-400 text-slate-900',
-  Wild: 'bg-slate-700',
+  Red: 'bg-gradient-to-br from-red-500 to-red-600 text-white border-white/20 shadow-[0_0_15px_rgba(239,68,68,0.3)]',
+  Blue: 'bg-gradient-to-br from-blue-500 to-blue-600 text-white border-white/20 shadow-[0_0_15px_rgba(59,130,246,0.3)]',
+  Green: 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-white/20 shadow-[0_0_15px_rgba(16,185,129,0.3)]',
+  Yellow: 'bg-gradient-to-br from-amber-400 to-amber-500 text-slate-900 border-white/20 shadow-[0_0_15px_rgba(251,191,36,0.3)]',
+  Wild: 'bg-gradient-to-br from-slate-700 to-slate-900 text-white border-white/20 shadow-[0_0_15px_rgba(51,65,85,0.3)]',
 };
 
 const COLOR_OPTIONS: CardColor[] = ['Red', 'Blue', 'Green', 'Yellow'];
@@ -32,12 +32,12 @@ type DealCard = {
 };
 
 const POINTS: Record<CardPoint, { x: string; y: string }> = {
-  draw: { x: '46%', y: '50%' },
-  discard: { x: '54%', y: '50%' },
-  bottom: { x: '50%', y: '82%' },
-  left: { x: '10%', y: '50%' },
-  top: { x: '50%', y: '11%' },
-  right: { x: '90%', y: '50%' },
+  draw: { x: '50%', y: '45%' },     // Draw pile in center-ish
+  discard: { x: '50%', y: '45%' },  // Discard pile aligned
+  bottom: { x: '50%', y: '85%' },   // Bottom hand area
+  left: { x: '12%', y: '45%' },     // Left player
+  top: { x: '50%', y: '15%' },      // Top player
+  right: { x: '88%', y: '45%' },    // Right player
 };
 
 function isPlayableCard(
@@ -86,21 +86,32 @@ function PlayerSeat({
 }) {
   const showLastCard = handCount === 1;
   const positionClass = {
-    left: 'hidden sm:block sm:left-4 sm:top-1/2 sm:-translate-y-1/2',
-    top: 'hidden sm:block sm:top-4 sm:left-1/2 sm:-translate-x-1/2',
-    right: 'hidden sm:block sm:right-4 sm:top-1/2 sm:-translate-y-1/2',
+    left: 'hidden sm:block sm:left-6 sm:top-[45%] sm:-translate-y-1/2',
+    top: 'hidden sm:block sm:top-6 sm:left-1/2 sm:-translate-x-1/2',
+    right: 'hidden sm:block sm:right-6 sm:top-[45%] sm:-translate-y-1/2',
   }[position];
 
   return (
-    <div className={`absolute ${positionClass}`}>
-      <div className={`rounded-xl px-3 py-2 sm:px-4 sm:py-3 bg-slate-800/80 border ${
-        isCurrent ? 'border-emerald-400 shadow-emerald-400/20 shadow-lg' : 'border-slate-700'
+    <div className={`absolute ${positionClass} z-10 transition-transform duration-300 ${isCurrent ? 'scale-110' : 'scale-100'}`}>
+      <div className={`relative flex flex-col items-center justify-center p-3 rounded-2xl backdrop-blur-md transition-all ${
+        isCurrent ? 'bg-white/10 border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.3)]' : 'bg-black/40 border border-white/10'
       }`}>
-        <div className="text-xs sm:text-sm uppercase tracking-wide text-slate-400">Player</div>
-        <div className="text-white font-semibold">{name}</div>
-        <div className="text-slate-300 text-xs sm:text-sm">{handCount} cards</div>
-        {showLastCard && <div className="text-amber-300 text-xs mt-1">Last Card</div>}
-        {hasCalledUno && <div className="text-amber-300 text-xs mt-1">UNO</div>}
+        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl mb-2 shadow-inner border border-white/20">
+          {name.charAt(0).toUpperCase()}
+        </div>
+        <div className="text-white font-bold text-sm tracking-wide truncate max-w-[80px] text-center drop-shadow-md">{name}</div>
+        <div className="text-slate-300 text-xs bg-black/40 rounded-full px-2.5 py-0.5 mt-1 border border-white/5">{handCount} cards</div>
+
+        {showLastCard && (
+          <div className="absolute -top-2 -right-2 bg-amber-500 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg border border-amber-300">
+            Last Card
+          </div>
+        )}
+        {hasCalledUno && (
+          <div className="absolute -bottom-2 right-1 lg:-right-3 bg-red-500 text-white text-[11px] font-black italic px-2.5 py-0.5 rounded-lg shadow-lg border border-red-300 transform rotate-12 animate-pulse">
+            UNO!
+          </div>
+        )}
       </div>
     </div>
   );
@@ -163,10 +174,17 @@ export default function Game() {
   const getSeatForIndex = (playerIndex: number): SeatPosition => {
     const relative = (playerIndex - gameState.myPlayerIndex + totalPlayers) % totalPlayers;
     if (relative === 0) return 'bottom';
-    if (totalPlayers === 2) return 'top';
-    if (totalPlayers === 3) {
-      return relative === 1 ? 'left' : 'top';
+
+    // Distribute opponent seats better across the UI based on total count
+    if (totalPlayers === 2) {
+      // 1 opponent -> top center
+      return 'top';
     }
+    if (totalPlayers === 3) {
+      // 2 opponents -> left and right (skip top to keep it balanced)
+      return relative === 1 ? 'left' : 'right';
+    }
+    // 3 opponents -> left, top, right
     if (relative === 1) return 'left';
     if (relative === 2) return 'top';
     return 'right';
@@ -175,22 +193,9 @@ export default function Game() {
   const otherSeats = useMemo(() => {
     const seats: Array<{ position: 'left' | 'top' | 'right'; player: ClientGameState['otherPlayers'][number] }> = [];
     for (const player of gameState.otherPlayers) {
-      const relative = (player.playerIndex - gameState.myPlayerIndex + totalPlayers) % totalPlayers;
-      if (totalPlayers === 3) {
-        if (relative === 1) {
-          seats.push({ position: 'left', player });
-        }
-        if (relative === 2) {
-          seats.push({ position: 'top', player });
-        }
-      } else {
-        if (relative === 1) {
-          seats.push({ position: 'left', player });
-        } else if (relative === 2) {
-          seats.push({ position: 'top', player });
-        } else if (relative === 3) {
-          seats.push({ position: 'right', player });
-        }
+      const position = getSeatForIndex(player.playerIndex);
+      if (position !== 'bottom') {
+        seats.push({ position: position as 'left' | 'top' | 'right', player });
       }
     }
     return seats;
@@ -330,24 +335,33 @@ export default function Game() {
   const logItems = [...gameState.eventLog].reverse();
 
   return (
-    <div className="min-h-screen overflow-y-auto flex flex-col p-3 sm:p-4 text-white">
-      <div className="w-full max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 mb-3">
+    <div className="h-screen overflow-hidden flex flex-col p-3 sm:p-4 text-white relative">
+      <div className="w-full max-w-[1400px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 mb-4 z-10 glass-panel p-4 rounded-2xl">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold">UNO Room</h2>
-          <div className="text-slate-300 text-xs sm:text-sm mt-1 flex flex-wrap items-center gap-2">
-            <span className="px-2 py-1 rounded-full bg-slate-800/80 border border-slate-700">{turnStatusLabel}</span>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">UNO Room</h2>
+          <div className="text-slate-300 text-xs sm:text-sm mt-2 flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 shadow-inner font-medium">
+              {turnStatusLabel}
+            </span>
             {gameState.pendingPenalty > 0 && (
-              <span className="px-2 py-1 rounded-full bg-red-500/10 border border-red-400/40 text-red-200">
+              <span className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30 text-red-200 font-bold animate-pulse">
                 Pending +{gameState.pendingPenalty}
               </span>
             )}
             {gameState.activeColor && (
-              <span className="px-2 py-1 rounded-full bg-slate-800/80 border border-slate-700">
-                Active {gameState.activeColor}
+              <span className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 font-bold flex items-center gap-2 shadow-inner">
+                Color:
+                <div className={`w-3 h-3 rounded-full ${COLOR_STYLES[gameState.activeColor].split(' ')[0]}`}></div>
+                {gameState.activeColor}
               </span>
             )}
             {gameState.directionChosen && (
-              <span className="px-2 py-1 rounded-full bg-slate-800/80 border border-slate-700">
+              <span className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 font-medium flex items-center gap-1.5 shadow-inner">
+                {gameState.direction === 1 ? (
+                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                ) : (
+                  <svg className="w-4 h-4 text-emerald-400 scale-x-[-1]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                )}
                 {gameState.direction === 1 ? 'Clockwise' : 'Counterclockwise'}
               </span>
             )}
@@ -357,7 +371,7 @@ export default function Game() {
           {isGameFinished && isHost && (
             <button
               onClick={handlePlayAgain}
-              className="px-3 py-2 text-sm rounded-full bg-emerald-600 hover:bg-emerald-700"
+              className="px-5 py-2 text-sm font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all"
             >
               Play Again
             </button>
@@ -370,113 +384,144 @@ export default function Game() {
                   setError(result.error || 'Failed to return to lobby');
                 }
               }}
-              className="px-3 py-2 text-sm rounded-full bg-slate-700 hover:bg-slate-600"
+              className="px-5 py-2 text-sm font-bold rounded-xl bg-slate-700 hover:bg-slate-600 shadow-lg border border-white/10 transition-all"
             >
-              Return to Lobby
+              Back to Lobby
             </button>
           )}
           <button
             onClick={leaveRoom}
-            className="px-3 py-2 text-sm rounded-full bg-red-600 hover:bg-red-700"
+            className="px-5 py-2 text-sm font-bold rounded-xl bg-red-600 hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.3)] transition-all"
           >
-            Leave
+            Leave Game
           </button>
         </div>
       </div>
 
       {!isConnected && (
-        <div className="w-full max-w-6xl mx-auto mb-2 bg-slate-800/80 text-slate-200 border border-slate-700 rounded-lg px-3 py-2 text-sm shrink-0">
+        <div className="w-full max-w-6xl mx-auto mb-3 bg-amber-500/20 text-amber-100 border border-amber-500/30 rounded-xl px-4 py-3 text-sm shrink-0 flex items-center gap-3 shadow-lg z-10">
+          <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></div>
           Reconnecting to server...
         </div>
       )}
 
       {reconnectWaitHint && (
-        <div className="w-full max-w-6xl mx-auto mb-2 bg-amber-500/20 text-amber-100 border border-amber-400/40 rounded-lg px-3 py-2 text-sm shrink-0">
-          Waiting for reconnect: {reconnectWaitHint}
+        <div className="w-full max-w-6xl mx-auto mb-3 bg-amber-500/20 text-amber-100 border border-amber-500/30 rounded-xl px-4 py-3 text-sm shrink-0 shadow-lg z-10">
+          <span className="font-bold">Waiting for reconnect:</span> {reconnectWaitHint}
         </div>
       )}
 
       {systemMessage && (
-        <div className="w-full max-w-6xl mx-auto mb-2 bg-blue-500/20 text-blue-200 border border-blue-500/40 rounded-lg px-3 py-2 text-sm shrink-0">
+        <div className="w-full max-w-6xl mx-auto mb-3 bg-blue-500/20 text-blue-100 border border-blue-500/30 rounded-xl px-4 py-3 text-sm shrink-0 shadow-lg z-10 flex items-center gap-2">
+          <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           {systemMessage}
         </div>
       )}
 
       {globalError && (
-        <div className="w-full max-w-6xl mx-auto mb-2 bg-red-500/20 text-red-200 border border-red-500/40 rounded-lg px-3 py-2 text-sm shrink-0">
+        <div className="w-full max-w-6xl mx-auto mb-3 bg-red-500/20 text-red-100 border border-red-500/30 rounded-xl px-4 py-3 text-sm shrink-0 shadow-lg z-10 flex items-center gap-2">
+          <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           {globalError.message}
         </div>
       )}
 
       {error && (
-        <div className="w-full max-w-6xl mx-auto mb-2 bg-red-500/20 text-red-200 border border-red-500/40 rounded-lg px-3 py-2 text-sm shrink-0">
+        <div className="w-full max-w-6xl mx-auto mb-3 bg-red-500/20 text-red-100 border border-red-500/30 rounded-xl px-4 py-3 text-sm shrink-0 shadow-lg z-10 flex items-center gap-2">
+          <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           {error}
         </div>
       )}
 
       {isLastCard && (
-        <div className="w-full max-w-6xl mx-auto mb-2 bg-amber-400/10 text-amber-200 border border-amber-300/40 rounded-lg px-3 py-2 text-center text-sm font-semibold shrink-0">
-          {gameState.myPlayer.hasCalledUno ? 'UNO called.' : 'You have one card left.'}
+        <div className="w-full max-w-6xl mx-auto mb-3 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-xl px-4 py-3 text-center text-sm font-extrabold shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-pulse z-10">
+          {gameState.myPlayer.hasCalledUno ? 'UNO CALLED!' : 'WARNING: ONE CARD LEFT'}
         </div>
       )}
 
       {canCallUno && (
-        <div className="w-full max-w-6xl mx-auto mb-2 flex justify-center shrink-0">
+        <div className="w-full max-w-6xl mx-auto mb-3 flex justify-center shrink-0 z-10">
           <button
             onClick={callUno}
-            className="px-5 py-2 rounded-full bg-amber-400 text-slate-900 text-sm font-semibold hover:bg-amber-300"
+            className="px-8 py-3 rounded-xl bg-gradient-to-r from-red-600 to-amber-500 text-white text-lg font-black tracking-widest shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:scale-105 transition-transform"
           >
-            Call UNO
+            CALL UNO!
           </button>
         </div>
       )}
 
       {isGameFinished && gameState.isDraw && (
-        <div className="w-full max-w-6xl mx-auto mb-2 bg-slate-700/40 text-slate-200 border border-slate-600/50 rounded-lg px-3 py-2 text-center text-sm font-semibold shrink-0">
+        <div className="w-full max-w-6xl mx-auto mb-3 bg-slate-700/60 text-white border border-slate-500/50 rounded-xl px-4 py-4 text-center text-lg font-bold shrink-0 shadow-xl z-10 backdrop-blur-md">
           Game ended in a draw.
         </div>
       )}
 
       {isGameFinished && !gameState.isDraw && winnerName && (
-        <div className="w-full max-w-6xl mx-auto mb-2 bg-emerald-400/10 text-emerald-200 border border-emerald-300/40 rounded-lg px-3 py-2 text-center text-sm font-semibold shrink-0">
-          {winnerName} wins.
+        <div className="w-full max-w-6xl mx-auto mb-3 bg-gradient-to-r from-emerald-600/40 to-emerald-400/40 text-emerald-100 border border-emerald-400/50 rounded-xl px-4 py-4 text-center text-xl font-black shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.3)] z-10 backdrop-blur-md">
+          {winnerName} WINS!
         </div>
       )}
 
       {needsDirection && (
-        <div className="w-full max-w-6xl mx-auto mb-2 bg-slate-800/80 text-slate-200 border border-slate-700 rounded-lg px-3 py-2 text-center text-sm shrink-0">
+        <div className="w-full max-w-[1400px] mx-auto mb-3 glass-panel rounded-xl px-6 py-4 text-center shrink-0 z-10">
           {isMyTurn ? (
-            <div className="flex flex-col items-center gap-3">
-              <div className="font-semibold">Choose play direction before the first move</div>
-              <div className="flex gap-3">
+            <div className="flex flex-col items-center gap-4">
+              <div className="font-bold text-lg text-white">Choose play direction</div>
+              <div className="flex gap-4">
                 <button
                   onClick={() => handleChooseDirection(1)}
-                  className="px-4 py-2 rounded-full bg-emerald-500 text-slate-900 font-semibold text-sm"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold shadow-lg hover:scale-105 transition-transform border border-blue-400/50"
                 >
                   Clockwise
                 </button>
                 <button
                   onClick={() => handleChooseDirection(-1)}
-                  className="px-4 py-2 rounded-full bg-sky-500 text-slate-900 font-semibold text-sm"
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold shadow-lg hover:scale-105 transition-transform border border-emerald-400/50"
                 >
                   Counterclockwise
                 </button>
               </div>
             </div>
           ) : (
-            <div className="font-semibold">Dealer is choosing the play direction.</div>
+            <div className="font-bold text-slate-300 flex items-center justify-center gap-3">
+              <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+              Dealer is choosing the play direction...
+            </div>
           )}
         </div>
       )}
 
-      <div className="w-full max-w-6xl mx-auto py-1 sm:py-3 flex items-center justify-center">
-        <div className="relative w-full max-w-[1080px] max-h-[58vh] sm:max-h-[74vh] aspect-[3/4] sm:aspect-[16/9] bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-slate-800/80 rounded-3xl border border-slate-700/50 overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none">
+      <div className="w-full max-w-[1400px] mx-auto flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+        {/* Left side: Match Log (desktop) */}
+        <div className="hidden lg:flex w-64 shrink-0 flex-col z-10 glass-panel rounded-2xl p-4 h-full max-h-[74vh]">
+          <div className="flex items-center gap-2 mb-3 shrink-0">
+            <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <div className="text-xs uppercase tracking-widest font-bold text-slate-300">Match Log</div>
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-2.5 pr-2 scrollbar-hide">
+            {logItems.length === 0 && (
+              <div className="text-sm text-slate-500 italic">No events yet. Game starts soon...</div>
+            )}
+            {logItems.map(item => (
+              <div key={item.id} className="text-xs text-slate-200 bg-black/20 border border-white/5 rounded-lg px-2.5 py-2 flex items-start gap-2">
+                <span className="text-slate-500 text-[10px] mt-0.5 shrink-0 font-mono">[{formatLogTime(item.createdAt)}]</span>
+                <span>{item.message}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Main Board */}
+        <div className="flex-1 py-1 sm:py-3 flex items-center justify-center relative min-w-0">
+          {/* Glow behind the board */}
+          <div className="absolute inset-0 bg-blue-500/10 blur-[100px] rounded-[100px] pointer-events-none"></div>
+
+          <div className="relative w-full max-w-[1080px] h-full lg:max-h-[80vh] bg-gradient-to-br from-white/5 to-black/20 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl overflow-hidden ring-1 ring-white/5">
+            <div className="absolute inset-0 pointer-events-none">
             <AnimatePresence>
               {dealCards.map((card) => (
                 <motion.div
                   key={card.id}
-                  className="absolute w-10 h-14 sm:w-12 sm:h-16 rounded-lg border border-slate-500/60 bg-slate-800 shadow-lg"
+                  className="absolute w-12 h-16 sm:w-16 sm:h-24 rounded-xl border border-white/20 bg-gradient-to-br from-slate-700 to-slate-900 shadow-xl"
                   initial={{
                     left: POINTS.draw.x,
                     top: POINTS.draw.y,
@@ -503,7 +548,7 @@ export default function Game() {
               {flyCard && (
                 <motion.div
                   key={flyCard.id}
-                  className={`absolute w-14 h-20 sm:w-16 sm:h-24 rounded-xl border border-slate-500/60 shadow-xl ${COLOR_STYLES[flyCard.color]}`}
+                  className={`absolute w-14 h-20 sm:w-16 sm:h-24 rounded-lg border border-slate-500/60 shadow-xl ${COLOR_STYLES[flyCard.color]} flex items-center justify-center`}
                   initial={{
                     left: POINTS[flyCard.from].x,
                     top: POINTS[flyCard.from].y,
@@ -523,24 +568,30 @@ export default function Game() {
                   }}
                   onAnimationComplete={() => setFlyCard(null)}
                 >
-                  <span className="absolute inset-0 flex items-center justify-center text-sm font-bold">
-                    {flyCard.value}
+                  <span className="font-extrabold drop-shadow-md text-sm sm:text-base">
+                    {flyCard.value === 'WildDraw4' ? '+4' :
+                     flyCard.value === 'Wild' ? 'WILD' :
+                     flyCard.value === 'Reverse' ? 'REV' :
+                     flyCard.value === 'Skip' ? 'SKIP' :
+                     flyCard.value === 'Draw2' ? '+2' :
+                     flyCard.value}
                   </span>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
 
-          <div className="sm:hidden absolute inset-0 pointer-events-none">
+          {/* Opponent Seats */}
+          <div className="sm:hidden absolute inset-0 pointer-events-none z-10">
             {otherSeats.map(({ position, player }) => (
               <div
                 key={'mobile-seat-overlay-' + player.id}
                 className="absolute -translate-x-1/2 -translate-y-1/2"
                 style={{ left: POINTS[position].x, top: POINTS[position].y }}
               >
-                <div className="min-w-[78px] rounded-md border border-slate-700 bg-slate-900/85 px-2 py-1 text-center">
-                  <div className="text-[10px] leading-none text-slate-300 truncate max-w-[86px]">{player.name}</div>
-                  <div className="text-[10px] text-slate-200">{player.handCount} cards</div>
+                <div className="min-w-[78px] rounded-xl border border-white/20 bg-slate-900/80 backdrop-blur-sm px-2.5 py-1.5 text-center shadow-lg transition-transform duration-300">
+                  <div className={`text-[11px] font-bold leading-none truncate max-w-[86px] drop-shadow-md pb-0.5 ${gameState.currentPlayerIndex === player.playerIndex ? 'text-emerald-400' : 'text-white'}`}>{player.name}</div>
+                  <div className="text-[10px] text-slate-300 font-medium bg-black/40 rounded-full inline-block px-2">{player.handCount} cards</div>
                 </div>
               </div>
             ))}
@@ -557,52 +608,87 @@ export default function Game() {
             />
           ))}
 
-          <div className="absolute left-1/2 top-[46%] sm:top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-4 sm:gap-8">
-            <div className="flex flex-col items-center gap-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-400">Draw Pile</div>
+          <div className="absolute left-1/2 top-[42%] sm:top-[45%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-10 sm:gap-16 z-0 scale-90 sm:scale-100">
+            <div className="flex flex-col items-center gap-3">
+              <div className="text-[11px] uppercase tracking-widest font-black text-white/50 drop-shadow">Draw</div>
               <button
                 onClick={handleDraw}
                 disabled={!isMyTurn || isChallengePending || needsDirection || isGameFinished}
-                className={`w-14 h-20 sm:w-16 sm:h-24 rounded-xl border-2 border-slate-500/60 bg-slate-900/70 flex items-center justify-center ${
-                  isMyTurn ? 'hover:border-emerald-400' : 'opacity-60'
+                className={`group relative w-16 h-24 sm:w-20 sm:h-32 rounded-xl border-2 border-white/20 bg-gradient-to-br from-slate-800 to-black shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center transition-all duration-300 ${
+                  isMyTurn ? 'hover:-translate-y-2 hover:border-white/50 hover:shadow-[0_15px_40px_rgba(255,255,255,0.15)] cursor-pointer' : 'opacity-80'
                 }`}
               >
-                <span className="text-sm">{gameState.drawPileCount}</span>
+                {/* Simulated stack of cards under draw pile */}
+                <div className="absolute inset-0 rounded-xl border-2 border-white/10 bg-slate-800 translate-x-1 -translate-y-1 -z-10 opacity-70"></div>
+                <div className="absolute inset-0 rounded-xl border-2 border-white/10 bg-slate-800 translate-x-1.5 -translate-y-1.5 -z-20 opacity-40"></div>
+
+                <div className="w-12 h-20 sm:w-16 sm:h-28 border border-white/10 rounded-lg flex items-center justify-center bg-black/40">
+                  <span className={`text-xl sm:text-2xl font-black italic drop-shadow-md transition-colors ${
+                    isMyTurn ? 'text-emerald-400 group-hover:text-emerald-300' : 'text-slate-500'
+                  }`}>UNO</span>
+                </div>
               </button>
               {gameState.hasDrawnThisTurn && (
                 <button
                   onClick={handleEndTurn}
                   disabled={isGameFinished}
-                  className="text-xs uppercase tracking-wide text-slate-300 hover:text-white disabled:opacity-60"
+                  className="absolute -bottom-10 px-4 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-white/20 text-[10px] font-bold uppercase tracking-widest text-white transition-colors shadow-lg z-20 hover:scale-105 whitespace-nowrap"
                 >
                   End Turn
                 </button>
               )}
             </div>
 
-            <div className="flex flex-col items-center gap-2">
-              <div className="text-[11px] uppercase tracking-wide text-slate-400">Discard</div>
-              <div className={`w-14 h-20 sm:w-16 sm:h-24 rounded-xl border-2 border-slate-500/60 flex items-center justify-center ${COLOR_STYLES[gameState.topCard.color]}`}>
-                <span className="text-lg font-bold">{gameState.topCard.value}</span>
+            <div className="flex flex-col items-center gap-3">
+              <div className="text-[11px] uppercase tracking-widest font-black text-white/50 drop-shadow">Discard</div>
+              <div className={`w-16 h-24 sm:w-20 sm:h-32 rounded-xl border-2 shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center relative ${COLOR_STYLES[gameState.topCard.color]}`}>
+                <div className="w-12 h-20 sm:w-16 sm:h-28 border border-white/20 rounded-lg flex items-center justify-center bg-black/10">
+                  <span className="text-2xl sm:text-3xl font-extrabold pb-0.5 drop-shadow-md">
+                    {gameState.topCard.value === 'WildDraw4' ? '+4' :
+                     gameState.topCard.value === 'Wild' ? 'WILD' :
+                     gameState.topCard.value === 'Reverse' ? 'REV' :
+                     gameState.topCard.value === 'Skip' ? 'SKIP' :
+                     gameState.topCard.value === 'Draw2' ? '+2' :
+                     gameState.topCard.value}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="absolute left-1/2 bottom-3 sm:bottom-6 -translate-x-1/2 w-[94%] sm:w-[90%]">
-            <div className="flex items-end justify-start sm:justify-center gap-2 sm:gap-3 flex-nowrap overflow-x-auto pb-1 px-1">
-              {gameState.myPlayer.hand.map((card) => {
+          <div className="absolute left-1/2 bottom-2 sm:bottom-6 -translate-x-1/2 w-[98%] sm:w-[90%] z-20">
+            <div className="flex items-end justify-start sm:justify-center flex-nowrap overflow-x-auto pb-4 pt-12 px-4 scrollbar-hide">
+              {gameState.myPlayer.hand.map((card, idx) => {
                 const playable = isPlayableCard(card, gameState, isMyTurn);
                 const isLastDrawn = gameState.lastDrawnCardId === card.id;
+                // Add overlapping effect by negative margin, except for the first card
+                const overlapClass = idx === 0 ? '' : '-ml-4 sm:-ml-6 md:-ml-8';
+
+                const displayValue = card.value === 'WildDraw4' ? '+4' :
+                                     card.value === 'Wild' ? 'WILD' :
+                                     card.value === 'Reverse' ? 'REV' :
+                                     card.value === 'Skip' ? 'SKIP' :
+                                     card.value === 'Draw2' ? '+2' :
+                                     card.value;
+
                 return (
                   <motion.button
                     key={card.id}
                     onClick={() => handlePlayCard(card)}
-                    whileHover={playable ? { y: -5 } : undefined}
-                    className={`w-12 h-16 sm:w-14 sm:h-20 md:w-16 md:h-24 rounded-xl border-2 flex items-center justify-center transition ${
-                      playable ? 'border-emerald-400/80 shadow-lg shadow-emerald-400/20' : 'border-slate-700/60 opacity-70'
-                    } ${isLastDrawn ? 'ring-2 ring-amber-300' : ''} ${COLOR_STYLES[card.color]}`}
+                    whileHover={playable ? { y: -20, scale: 1.05 } : undefined}
+                    className={`shrink-0 w-14 h-20 sm:w-16 sm:h-24 md:w-20 md:h-32 rounded-lg border-2 flex items-center justify-center transition-all duration-200 shadow-xl ${overlapClass} ${
+                      playable
+                        ? 'border-white/50 cursor-pointer z-10 hover:z-40 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)]'
+                        : 'border-slate-900/60 grayscale-[0.5] brightness-75 cursor-not-allowed z-0 hover:z-20 md:hover:-translate-y-2'
+                    } ${isLastDrawn ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-slate-900' : ''} ${COLOR_STYLES[card.color]}`}
                   >
-                    <span className="text-base font-bold">{card.value}</span>
+                    <div className="w-10 h-16 sm:w-12 sm:h-20 md:w-16 md:h-28 border border-white/20 rounded flex items-center justify-center bg-black/10 relative">
+                      {/* Dark overlay for disabled cards so they don't look transparent */}
+                      {!playable && <div className="absolute inset-0 bg-black/20 rounded z-0 pointer-events-none"></div>}
+                      <span className={`font-extrabold pb-0.5 drop-shadow-md z-10 relative ${
+                        displayValue.length > 2 ? 'text-sm sm:text-base md:text-lg' : 'text-xl sm:text-2xl md:text-3xl'
+                      }`}>{displayValue}</span>
+                    </div>
                   </motion.button>
                 );
               })}
@@ -610,45 +696,44 @@ export default function Game() {
           </div>
         </div>
       </div>
+      </div>
 
-      <div className="w-full max-w-6xl mx-auto mt-2 mb-3 shrink-0">
-        <div className="bg-slate-900/70 border border-slate-700 rounded-lg p-3">
-          <div className="text-sm uppercase tracking-wide text-slate-400 mb-2">Match Log</div>
-          <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
-            {logItems.length === 0 && (
-              <div className="text-sm text-slate-400">No events yet.</div>
-            )}
-            {logItems.map(item => (
-              <div key={item.id} className="text-sm text-slate-200 bg-slate-800/70 rounded px-2 py-1">
-                <span className="text-slate-400 mr-2">[{formatLogTime(item.createdAt)}]</span>
-                <span>{item.message}</span>
-              </div>
-            ))}
-          </div>
+      {/* Mobile Match Log (shown below board on small screens) */}
+      <div className="lg:hidden w-full max-w-[1400px] mx-auto mt-2 shrink-0 z-10 glass-panel rounded-xl p-2.5 flex items-center gap-3">
+        <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <div className="text-[11px] text-slate-300 truncate flex-1 font-medium">
+          {logItems.length > 0 ? (
+            <>
+              <span className="text-slate-500 font-mono mr-2">[{formatLogTime(logItems[logItems.length - 1].createdAt)}]</span>
+              {logItems[logItems.length - 1].message}
+            </>
+          ) : (
+            "Game starts soon..."
+          )}
         </div>
       </div>
 
       <AnimatePresence>
         {pendingWildCardId && (
           <motion.div
-            className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              className="glass-panel border-white/20 rounded-3xl p-8 w-full max-w-sm shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
             >
-              <h3 className="text-lg font-semibold mb-4">Choose a color</h3>
-              <div className="grid grid-cols-2 gap-3">
+              <h3 className="text-2xl font-black mb-6 text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">Choose Color</h3>
+              <div className="grid grid-cols-2 gap-4">
                 {COLOR_OPTIONS.map((color) => (
                   <button
                     key={color}
                     onClick={() => handleWildColor(color)}
-                    className={`rounded-lg py-3 font-semibold ${COLOR_STYLES[color]}`}
+                    className={`rounded-2xl py-4 font-bold text-lg shadow-lg hover:scale-105 transition-transform ${COLOR_STYLES[color]}`}
                   >
                     {color}
                   </button>
@@ -656,9 +741,9 @@ export default function Game() {
               </div>
               <button
                 onClick={() => setPendingWildCardId(null)}
-                className="mt-4 w-full text-sm text-slate-400 hover:text-slate-200"
+                className="mt-6 w-full py-3 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-semibold text-slate-300 hover:text-white transition-colors border border-white/10"
               >
-                Cancel
+                Cancel Selection
               </button>
             </motion.div>
           </motion.div>
@@ -668,39 +753,44 @@ export default function Game() {
       <AnimatePresence>
         {amChallenger && (
           <motion.div
-            className="fixed inset-0 bg-black/70 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm text-center"
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 20, opacity: 0 }}
+              className="glass-panel border-white/20 rounded-3xl p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+              initial={{ y: 30, opacity: 0, scale: 0.9 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 30, opacity: 0, scale: 0.9 }}
             >
-              <h3 className="text-xl font-semibold mb-2">Wild Draw 4</h3>
-              <p className="text-slate-300 mb-3">Choose to accept the penalty or challenge the play.</p>
+              <div className="w-16 h-16 mx-auto bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center mb-4 shadow-lg border-4 border-white/20">
+                <span className="text-2xl font-black">+4</span>
+              </div>
+              <h3 className="text-2xl font-black mb-2 text-white">Wild Draw 4 Played!</h3>
+              <p className="text-slate-300 text-sm mb-6">You can accept the 4 card penalty, or challenge if you think they illegally played it.</p>
+
               {challengePreviousColor && (
-                <div className="mb-4 text-sm text-slate-300">
-                  Previous color:{' '}
-                  <span className={`inline-flex items-center px-2 py-1 rounded-md text-white ${COLOR_STYLES[challengePreviousColor]}`}>
+                <div className="mb-6 p-3 bg-black/30 rounded-xl border border-white/10 inline-flex items-center gap-3">
+                  <span className="text-xs uppercase font-bold text-slate-400">Previous Color:</span>
+                  <span className={`inline-flex items-center justify-center px-3 py-1 rounded-md text-white font-bold text-sm shadow-sm ${COLOR_STYLES[challengePreviousColor]}`}>
                     {challengePreviousColor}
                   </span>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={() => handleChallenge(false)}
-                  className="bg-slate-700 hover:bg-slate-600 rounded-lg py-3 font-semibold"
+                  className="bg-slate-700 hover:bg-slate-600 border border-slate-500 rounded-xl py-3.5 font-bold shadow-lg transition-colors"
                 >
-                  Accept
+                  Accept (+4)
                 </button>
                 <button
                   onClick={() => handleChallenge(true)}
-                  className="bg-amber-500 hover:bg-amber-400 rounded-lg py-3 font-semibold text-slate-900"
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 border border-amber-300 rounded-xl py-3.5 font-bold text-slate-900 shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all hover:scale-105"
                 >
-                  Challenge
+                  Challenge!
                 </button>
               </div>
             </motion.div>

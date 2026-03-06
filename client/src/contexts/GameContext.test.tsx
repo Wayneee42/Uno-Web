@@ -14,7 +14,7 @@ const mockSocket = {
   emit: (event: string, payload: any, callback?: (...args: any[]) => void) => {
     if (event === 'createRoom' && callback) {
       callback({
-        room: { roomId: 'ROOM1', players: [], minPlayers: 3, maxPlayers: 4, canStart: false },
+        room: { roomId: 'ROOM1', players: [], minPlayers: 2, maxPlayers: 4, canStart: false },
         playerId: 'player-1',
         sessionId: 'session-1',
       });
@@ -29,7 +29,7 @@ const mockSocket = {
         room: {
           roomId: 'ROOM2',
           players: [{ id: 'player-2', name: 'Bob', isReady: true, isHost: true, connected: true }],
-          minPlayers: 3,
+          minPlayers: 2,
           maxPlayers: 4,
           canStart: false,
         },
@@ -111,3 +111,4 @@ describe('GameContext', () => {
     expect(await screen.findByTestId('global-error')).toHaveTextContent('Server encountered an unexpected error.');
   });
 });
+

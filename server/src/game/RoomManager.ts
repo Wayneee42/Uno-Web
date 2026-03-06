@@ -1,4 +1,4 @@
-﻿import type { Player, RoomInfo } from '@uno-web/shared';
+import type { Player, RoomInfo } from '@uno-web/shared';
 
 interface Room {
   id: string;
@@ -7,7 +7,7 @@ interface Room {
   readyPlayers: Set<string>;
 }
 
-const MIN_PLAYERS = 3;
+const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 4;
 export const RECONNECT_GRACE_MS = 30_000;
 

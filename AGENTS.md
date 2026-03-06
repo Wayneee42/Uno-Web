@@ -1,38 +1,49 @@
-# Repository Guidelines
+﻿# Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository is a TypeScript monorepo using npm workspaces:
-- `client/`: Vite + React frontend with Tailwind CSS. Main code lives in `client/src/` (`components/`, `contexts/`, `hooks/`, `pages/`).
-- `server/`: Express + Socket.IO backend. Main code lives in `server/src/` (`game/`, `socket/`, `utils/`).
-- `shared/`: Shared types and utilities consumed by client and server (`shared/src/`).
-Built output is generated per package in `dist/` and should be treated as build artifacts.
+This repository is an npm workspace monorepo:
+- `client/`: React + Vite frontend (`src/components`, `src/pages`, `src/contexts`)
+- `server/`: Node + Express + Socket.IO backend (`src/game`, `src/socket`, `src/utils`)
+- `shared/`: Shared TypeScript types/contracts consumed by client and server
+- `docs/`: Project notes, task logs, and testing documentation
+
+Keep cross-module game contracts in `shared/src/types` first, then consume them from `client` and `server`.
 
 ## Build, Test, and Development Commands
-Run commands from the repository root:
-- `npm run dev`: start client and server together for local development.
-- `npm run dev:client`: run only the Vite frontend.
-- `npm run dev:server`: run only the backend with `tsx watch`.
-- `npm run build`: build `shared`, then `client`, then `server`.
-- `npm run start`: run the production server from `server/dist/index.js`.
-Workspace-scoped example: `npm run build --workspace=client`.
+Run all commands from repository root unless noted.
+- `npm run dev`: Builds `shared`, then starts client/server/shared watchers concurrently.
+- `npm run build`: Builds all workspaces in dependency order.
+- `npm run start`: Starts compiled server (`server/dist/index.js`).
+- `npm run test`: Runs tests in all workspaces.
+- `npm run test --workspace=client|server|shared`: Runs tests for one package.
+
+Example: `npm run test --workspace=server` for backend logic only.
 
 ## Coding Style & Naming Conventions
-Use TypeScript with ES modules (`"type": "module"`). Follow existing file formatting; no formatter or linter is currently enforced.
-- Components: PascalCase filenames and symbols (for example, `GameBoard.tsx`).
-- Hooks: `useX` naming (for example, `useSocket.ts`).
-- Contexts/providers: `XContext` and `XProvider` patterns.
-Prefer clear, small modules and keep shared contracts in `shared/src/`.
+- Language: TypeScript across all workspaces.
+- Indentation: 2 spaces; include semicolons.
+- Naming: `PascalCase` for React components/types, `camelCase` for variables/functions, descriptive file names (e.g., `RoomManager.ts`, `GameContext.tsx`).
+- Tests: colocate with source using `*.test.ts` or `*.test.tsx`.
+
+No dedicated lint script is currently defined; rely on `tsc`, Vitest, and existing code style in touched files.
 
 ## Testing Guidelines
-No test framework is configured yet. When adding tests, include a workspace-appropriate tool (for example, Vitest) and wire a `test` script at root and package level. Name tests near source (`*.test.ts` / `*.test.tsx`) and prioritize game rules, socket flows, and critical UI state transitions.
+- Framework: Vitest in all workspaces.
+- Environments: client uses `jsdom`; server/shared use `node`.
+- Add/update tests for every gameplay rule, socket handler, and shared type change.
+- Favor deterministic assertions for game logic; keep simulation tests for cross-module confidence.
 
 ## Commit & Pull Request Guidelines
-Current history uses simple messages (for example, `baseline`), so use short imperative commit titles such as `Add lobby reconnection handling`.
-For pull requests, include:
-- concise summary of behavior changes,
-- linked issue(s) when applicable,
-- screenshots/GIFs for client-visible updates,
-- notes on any new scripts, env vars, or migration steps.
+Recent history uses short, imperative summaries (e.g., `update game logic`, `add tests and other improvements`). Follow this style:
+- Keep subject concise and action-oriented.
+- Scope one logical change per commit.
 
-## Configuration & Environment Notes
-Use `.env.example` as the template for local settings. In development, the server entry is `server/src/index.ts`; production uses `server/dist/index.js`. Keep cross-package imports through `@uno-web/shared` where possible.
+For pull requests:
+- Explain what changed and why.
+- Link related issue/task when available.
+- Include UI screenshots/GIFs for `client` visual changes.
+- Confirm `npm run test` and relevant workspace builds pass.
+
+## Security & Configuration Tips
+- Use `.env` for local secrets; never commit real credentials.
+- Keep `.env.example` updated when adding new environment variables.

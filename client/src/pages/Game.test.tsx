@@ -1,4 +1,4 @@
-﻿import { render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientGameState } from '@uno-web/shared';
 import Game from './Game';
@@ -103,7 +103,7 @@ describe('Game', () => {
     });
 
     render(<Game />);
-    expect(screen.getByText('Choose play direction before the first move')).toBeInTheDocument();
+    expect(screen.getByText('Choose play direction')).toBeInTheDocument();
   });
 
   it('shows global socket errors as banners', () => {
@@ -148,6 +148,7 @@ describe('Game', () => {
 
     render(<Game />);
     expect(screen.getByText('Match Log')).toBeInTheDocument();
-    expect(screen.getByText('Game started with 3 players.')).toBeInTheDocument();
+    expect(screen.getAllByText('Game started with 3 players.').length).toBeGreaterThan(0);
   });
 });
+

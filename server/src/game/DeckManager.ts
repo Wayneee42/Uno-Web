@@ -101,3 +101,4 @@ export function getHighestCardValue(hand: Card[]): number {
   }
   return highest;
 }
+
