@@ -1,7 +1,7 @@
 ﻿import { describe, expect, it, vi } from 'vitest';
-import type { Player, GameState, Card } from '@uno-web/shared';
-import { GameManager } from './GameManager';
+import type { Card, GameState, Player } from '@uno-web/shared';
 import { canPlayCard } from './DeckManager';
+import { GameManager } from './GameManager';
 
 function seedRandom(seed = 42) {
   let state = seed;
@@ -14,11 +14,13 @@ function seedRandom(seed = 42) {
 function makePlayers(count: number): Player[] {
   return Array.from({ length: count }, (_, index) => ({
     id: `p${index + 1}`,
+    sessionId: `session-${index + 1}`,
     name: `Player ${index + 1}`,
     hand: [],
     status: 'waiting',
     hasCalledUno: false,
-    socketId: `s${index + 1}`,
+    socketId: `sock-${index + 1}`,
+    connected: true,
   }));
 }
 
@@ -81,8 +83,8 @@ function simulateTurn(manager: GameManager, state: GameState): void {
     const unoResult = manager.callUno(state, current.id);
     expect(unoResult.success).toBe(true);
   }
-  const playable = findPlayableCard(state, current);
 
+  const playable = findPlayableCard(state, current);
   if (playable) {
     const chosenColor = playable.color === 'Wild' ? chooseWildColor(current.hand) : undefined;
     const result = manager.playCard(state, current.id, playable.id, chosenColor);
@@ -120,7 +122,6 @@ describe('Game simulation', () => {
         const manager = new GameManager();
         const players = makePlayers(4);
         const state = manager.createGame(`room-${gameIndex}`, players, players[0].id);
-        const deckSize = state.drawPile.length + state.discardPile.length + state.players.reduce((sum, player) => sum + player.hand.length, 0);
 
         let safety = 0;
         const maxTurns = 5000;
@@ -130,9 +131,7 @@ describe('Game simulation', () => {
         }
 
         if (state.phase !== 'finished') {
-          throw new Error(
-            `Simulation did not finish after ${maxTurns} turns (room ${state.roomId}).`
-          );
+          throw new Error(`Simulation did not finish after ${maxTurns} turns (room ${state.roomId}).`);
         }
         if (state.isDraw) {
           expect(state.winnerId).toBeNull();

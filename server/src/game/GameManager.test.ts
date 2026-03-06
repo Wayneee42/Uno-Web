@@ -7,9 +7,9 @@ describe('GameManager', () => {
   it('creates a game with dealt hands and a non-wild top card', () => {
     const manager = new GameManager();
     const players: Player[] = [
-      { id: 'p1', name: 'Alice', hand: [], status: 'waiting', hasCalledUno: false, socketId: 's1' },
-      { id: 'p2', name: 'Bob', hand: [], status: 'waiting', hasCalledUno: false, socketId: 's2' },
-      { id: 'p3', name: 'Cara', hand: [], status: 'waiting', hasCalledUno: false, socketId: 's3' },
+      { id: 'p1', sessionId: 's1', name: 'Alice', hand: [], status: 'waiting', hasCalledUno: false, socketId: 'sock-1', connected: true },
+      { id: 'p2', sessionId: 's2', name: 'Bob', hand: [], status: 'waiting', hasCalledUno: false, socketId: 'sock-2', connected: true },
+      { id: 'p3', sessionId: 's3', name: 'Cara', hand: [], status: 'waiting', hasCalledUno: false, socketId: 'sock-3', connected: true },
     ];
 
     const state = manager.createGame('room-1', players, 'p1');

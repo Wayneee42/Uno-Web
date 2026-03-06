@@ -1,7 +1,7 @@
-﻿import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import Game from './Game';
+﻿import { render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientGameState } from '@uno-web/shared';
+import Game from './Game';
 
 const mockUseGame = vi.fn();
 
@@ -14,11 +14,13 @@ const baseState: ClientGameState = {
   phase: 'playing',
   myPlayer: {
     id: 'p1',
+    sessionId: 'session-1',
     name: 'Alice',
     hand: [{ id: 'c1', color: 'Red', value: '1' }],
     status: 'playing',
     hasCalledUno: false,
     socketId: 'sock-1',
+    connected: true,
   },
   otherPlayers: [
     {
@@ -28,6 +30,7 @@ const baseState: ClientGameState = {
       handCount: 7,
       status: 'playing',
       hasCalledUno: false,
+      connected: true,
     },
   ],
   currentPlayerIndex: 0,
@@ -45,6 +48,13 @@ const baseState: ClientGameState = {
   lastDrawnCardId: null,
   winnerId: null,
   isDraw: false,
+  eventLog: [
+    {
+      id: 'log-1',
+      createdAt: Date.now(),
+      message: 'Game started with 3 players.',
+    },
+  ],
 };
 
 describe('Game', () => {
@@ -62,8 +72,11 @@ describe('Game', () => {
       challenge: vi.fn(),
       leaveRoom: vi.fn(),
       callUno: vi.fn(),
+      playAgain: vi.fn(),
       returnToLobby: vi.fn(),
       systemMessage: null,
+      globalError: null,
+      reconnectWaitList: [],
       isConnected: true,
     });
 
@@ -81,12 +94,60 @@ describe('Game', () => {
       challenge: vi.fn(),
       leaveRoom: vi.fn(),
       callUno: vi.fn(),
+      playAgain: vi.fn(),
       returnToLobby: vi.fn(),
       systemMessage: null,
+      globalError: null,
+      reconnectWaitList: [],
       isConnected: true,
     });
 
     render(<Game />);
     expect(screen.getByText('Choose play direction before the first move')).toBeInTheDocument();
+  });
+
+  it('shows global socket errors as banners', () => {
+    mockUseGame.mockReturnValue({
+      gameState: baseState,
+      playCard: vi.fn(),
+      drawCard: vi.fn(),
+      endTurn: vi.fn(),
+      chooseDirection: vi.fn(),
+      challenge: vi.fn(),
+      leaveRoom: vi.fn(),
+      callUno: vi.fn(),
+      playAgain: vi.fn(),
+      returnToLobby: vi.fn(),
+      systemMessage: null,
+      globalError: { code: 'INTERNAL_ERROR', message: 'Failed to synchronize game state.' },
+      reconnectWaitList: [],
+      isConnected: true,
+    });
+
+    render(<Game />);
+    expect(screen.getByText('Failed to synchronize game state.')).toBeInTheDocument();
+  });
+
+  it('renders match log panel', () => {
+    mockUseGame.mockReturnValue({
+      gameState: baseState,
+      playCard: vi.fn(),
+      drawCard: vi.fn(),
+      endTurn: vi.fn(),
+      chooseDirection: vi.fn(),
+      challenge: vi.fn(),
+      leaveRoom: vi.fn(),
+      callUno: vi.fn(),
+      playAgain: vi.fn(),
+      returnToLobby: vi.fn(),
+      systemMessage: null,
+      globalError: null,
+      reconnectWaitList: [],
+      isConnected: true,
+    });
+
+    render(<Game />);
+    expect(screen.getByText('Match Log')).toBeInTheDocument();
+    expect(screen.getByText('Game started with 3 players.')).toBeInTheDocument();
   });
 });

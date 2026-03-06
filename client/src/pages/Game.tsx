@@ -35,9 +35,9 @@ const POINTS: Record<CardPoint, { x: string; y: string }> = {
   draw: { x: '46%', y: '50%' },
   discard: { x: '54%', y: '50%' },
   bottom: { x: '50%', y: '82%' },
-  left: { x: '14%', y: '50%' },
-  top: { x: '50%', y: '16%' },
-  right: { x: '86%', y: '50%' },
+  left: { x: '10%', y: '50%' },
+  top: { x: '50%', y: '11%' },
+  right: { x: '90%', y: '50%' },
 };
 
 function isPlayableCard(
@@ -63,6 +63,14 @@ function isPlayableCard(
   return card.color === effectiveColor || card.value === state.topCard.value;
 }
 
+function formatLogTime(createdAt: number): string {
+  return new Date(createdAt).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
 function PlayerSeat({
   name,
   handCount,
@@ -78,19 +86,19 @@ function PlayerSeat({
 }) {
   const showLastCard = handCount === 1;
   const positionClass = {
-    left: 'left-4 top-1/2 -translate-y-1/2',
-    top: 'top-4 left-1/2 -translate-x-1/2',
-    right: 'right-4 top-1/2 -translate-y-1/2',
+    left: 'hidden sm:block sm:left-4 sm:top-1/2 sm:-translate-y-1/2',
+    top: 'hidden sm:block sm:top-4 sm:left-1/2 sm:-translate-x-1/2',
+    right: 'hidden sm:block sm:right-4 sm:top-1/2 sm:-translate-y-1/2',
   }[position];
 
   return (
     <div className={`absolute ${positionClass}`}>
-      <div className={`rounded-xl px-4 py-3 bg-slate-800/80 border ${
+      <div className={`rounded-xl px-3 py-2 sm:px-4 sm:py-3 bg-slate-800/80 border ${
         isCurrent ? 'border-emerald-400 shadow-emerald-400/20 shadow-lg' : 'border-slate-700'
       }`}>
-        <div className="text-sm uppercase tracking-wide text-slate-400">Player</div>
+        <div className="text-xs sm:text-sm uppercase tracking-wide text-slate-400">Player</div>
         <div className="text-white font-semibold">{name}</div>
-        <div className="text-slate-300 text-sm">{handCount} cards</div>
+        <div className="text-slate-300 text-xs sm:text-sm">{handCount} cards</div>
         {showLastCard && <div className="text-amber-300 text-xs mt-1">Last Card</div>}
         {hasCalledUno && <div className="text-amber-300 text-xs mt-1">UNO</div>}
       </div>
@@ -108,8 +116,11 @@ export default function Game() {
     challenge,
     leaveRoom,
     callUno,
+    playAgain,
     returnToLobby,
     systemMessage,
+    globalError,
+    reconnectWaitList,
     isConnected,
   } = useGame();
   const [error, setError] = useState<string | null>(null);
@@ -139,6 +150,16 @@ export default function Game() {
   const winnerName = gameState.winnerId === gameState.myPlayer.id
     ? gameState.myPlayer.name
     : gameState.otherPlayers.find(player => player.id === gameState.winnerId)?.name ?? null;
+  const turnStatusLabel = isGameFinished
+    ? 'Game finished'
+    : isMyTurn
+      ? 'Your turn'
+      : 'Waiting for other player';
+
+  const reconnectWaitHint = reconnectWaitList
+    .map(item => `${item.name} (${item.remainingSeconds}s)`)
+    .join(', ');
+
   const getSeatForIndex = (playerIndex: number): SeatPosition => {
     const relative = (playerIndex - gameState.myPlayerIndex + totalPlayers) % totalPlayers;
     if (relative === 0) return 'bottom';
@@ -150,6 +171,7 @@ export default function Game() {
     if (relative === 2) return 'top';
     return 'right';
   };
+
   const otherSeats = useMemo(() => {
     const seats: Array<{ position: 'left' | 'top' | 'right'; player: ClientGameState['otherPlayers'][number] }> = [];
     for (const player of gameState.otherPlayers) {
@@ -201,7 +223,7 @@ export default function Game() {
                 delay,
               });
             }
-            delay += 0.06;
+            delay += 0.09;
           }
         }
       }
@@ -211,7 +233,6 @@ export default function Game() {
         const totalDurationMs = (delay + 0.5) * 1000;
         dealTimer = window.setTimeout(() => setDealCards([]), totalDurationMs);
       }
-
     } else {
       if (gameState.lastPlayedCard && gameState.lastPlayedCard.id !== prev.lastPlayedCard?.id) {
         const from = getSeatForIndex(prev.currentPlayerIndex);
@@ -298,19 +319,49 @@ export default function Game() {
     }
   };
 
+  const handlePlayAgain = async () => {
+    setError(null);
+    const result = await playAgain();
+    if (!result.success) {
+      setError(result.error || 'Failed to start rematch');
+    }
+  };
+
+  const logItems = [...gameState.eventLog].reverse();
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 text-white">
-      <div className="w-full max-w-6xl flex items-center justify-between mb-4">
+    <div className="min-h-screen overflow-y-auto flex flex-col p-3 sm:p-4 text-white">
+      <div className="w-full max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0 mb-3">
         <div>
-          <h2 className="text-2xl font-bold">UNO Room</h2>
-          <div className="text-slate-300 text-sm">
-            {isGameFinished ? 'Game finished' : isMyTurn ? 'Your turn' : 'Waiting for other player'}
-            {gameState.pendingPenalty > 0 && ` | Pending +${gameState.pendingPenalty}`}
-            {gameState.activeColor && ` | Active ${gameState.activeColor}`}
-            {gameState.directionChosen && ` | Direction ${gameState.direction === 1 ? 'Clockwise' : 'Counterclockwise'}`}
+          <h2 className="text-xl sm:text-2xl font-bold">UNO Room</h2>
+          <div className="text-slate-300 text-xs sm:text-sm mt-1 flex flex-wrap items-center gap-2">
+            <span className="px-2 py-1 rounded-full bg-slate-800/80 border border-slate-700">{turnStatusLabel}</span>
+            {gameState.pendingPenalty > 0 && (
+              <span className="px-2 py-1 rounded-full bg-red-500/10 border border-red-400/40 text-red-200">
+                Pending +{gameState.pendingPenalty}
+              </span>
+            )}
+            {gameState.activeColor && (
+              <span className="px-2 py-1 rounded-full bg-slate-800/80 border border-slate-700">
+                Active {gameState.activeColor}
+              </span>
+            )}
+            {gameState.directionChosen && (
+              <span className="px-2 py-1 rounded-full bg-slate-800/80 border border-slate-700">
+                {gameState.direction === 1 ? 'Clockwise' : 'Counterclockwise'}
+              </span>
+            )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 self-end sm:self-auto">
+          {isGameFinished && isHost && (
+            <button
+              onClick={handlePlayAgain}
+              className="px-3 py-2 text-sm rounded-full bg-emerald-600 hover:bg-emerald-700"
+            >
+              Play Again
+            </button>
+          )}
           {isGameFinished && isHost && (
             <button
               onClick={async () => {
@@ -319,14 +370,14 @@ export default function Game() {
                   setError(result.error || 'Failed to return to lobby');
                 }
               }}
-              className="px-4 py-2 rounded-full bg-slate-700 hover:bg-slate-600"
+              className="px-3 py-2 text-sm rounded-full bg-slate-700 hover:bg-slate-600"
             >
               Return to Lobby
             </button>
           )}
           <button
             onClick={leaveRoom}
-            className="px-4 py-2 rounded-full bg-red-600 hover:bg-red-700"
+            className="px-3 py-2 text-sm rounded-full bg-red-600 hover:bg-red-700"
           >
             Leave
           </button>
@@ -334,34 +385,46 @@ export default function Game() {
       </div>
 
       {!isConnected && (
-        <div className="w-full max-w-3xl mb-4 bg-slate-800/80 text-slate-200 border border-slate-700 rounded-lg px-4 py-3">
+        <div className="w-full max-w-6xl mx-auto mb-2 bg-slate-800/80 text-slate-200 border border-slate-700 rounded-lg px-3 py-2 text-sm shrink-0">
           Reconnecting to server...
         </div>
       )}
 
+      {reconnectWaitHint && (
+        <div className="w-full max-w-6xl mx-auto mb-2 bg-amber-500/20 text-amber-100 border border-amber-400/40 rounded-lg px-3 py-2 text-sm shrink-0">
+          Waiting for reconnect: {reconnectWaitHint}
+        </div>
+      )}
+
       {systemMessage && (
-        <div className="w-full max-w-3xl mb-4 bg-blue-500/20 text-blue-200 border border-blue-500/40 rounded-lg px-4 py-3">
+        <div className="w-full max-w-6xl mx-auto mb-2 bg-blue-500/20 text-blue-200 border border-blue-500/40 rounded-lg px-3 py-2 text-sm shrink-0">
           {systemMessage}
         </div>
       )}
 
+      {globalError && (
+        <div className="w-full max-w-6xl mx-auto mb-2 bg-red-500/20 text-red-200 border border-red-500/40 rounded-lg px-3 py-2 text-sm shrink-0">
+          {globalError.message}
+        </div>
+      )}
+
       {error && (
-        <div className="w-full max-w-3xl mb-4 bg-red-500/20 text-red-200 border border-red-500/40 rounded-lg px-4 py-3">
+        <div className="w-full max-w-6xl mx-auto mb-2 bg-red-500/20 text-red-200 border border-red-500/40 rounded-lg px-3 py-2 text-sm shrink-0">
           {error}
         </div>
       )}
 
       {isLastCard && (
-        <div className="w-full max-w-3xl mb-4 bg-amber-400/10 text-amber-200 border border-amber-300/40 rounded-lg px-4 py-3 text-center font-semibold">
+        <div className="w-full max-w-6xl mx-auto mb-2 bg-amber-400/10 text-amber-200 border border-amber-300/40 rounded-lg px-3 py-2 text-center text-sm font-semibold shrink-0">
           {gameState.myPlayer.hasCalledUno ? 'UNO called.' : 'You have one card left.'}
         </div>
       )}
 
       {canCallUno && (
-        <div className="w-full max-w-3xl mb-4 flex justify-center">
+        <div className="w-full max-w-6xl mx-auto mb-2 flex justify-center shrink-0">
           <button
             onClick={callUno}
-            className="px-6 py-2 rounded-full bg-amber-400 text-slate-900 font-semibold hover:bg-amber-300"
+            className="px-5 py-2 rounded-full bg-amber-400 text-slate-900 text-sm font-semibold hover:bg-amber-300"
           >
             Call UNO
           </button>
@@ -369,32 +432,32 @@ export default function Game() {
       )}
 
       {isGameFinished && gameState.isDraw && (
-        <div className="w-full max-w-3xl mb-4 bg-slate-700/40 text-slate-200 border border-slate-600/50 rounded-lg px-4 py-3 text-center font-semibold">
+        <div className="w-full max-w-6xl mx-auto mb-2 bg-slate-700/40 text-slate-200 border border-slate-600/50 rounded-lg px-3 py-2 text-center text-sm font-semibold shrink-0">
           Game ended in a draw.
         </div>
       )}
 
       {isGameFinished && !gameState.isDraw && winnerName && (
-        <div className="w-full max-w-3xl mb-4 bg-emerald-400/10 text-emerald-200 border border-emerald-300/40 rounded-lg px-4 py-3 text-center font-semibold">
+        <div className="w-full max-w-6xl mx-auto mb-2 bg-emerald-400/10 text-emerald-200 border border-emerald-300/40 rounded-lg px-3 py-2 text-center text-sm font-semibold shrink-0">
           {winnerName} wins.
         </div>
       )}
 
       {needsDirection && (
-        <div className="w-full max-w-3xl mb-4 bg-slate-800/80 text-slate-200 border border-slate-700 rounded-lg px-4 py-3 text-center">
+        <div className="w-full max-w-6xl mx-auto mb-2 bg-slate-800/80 text-slate-200 border border-slate-700 rounded-lg px-3 py-2 text-center text-sm shrink-0">
           {isMyTurn ? (
             <div className="flex flex-col items-center gap-3">
               <div className="font-semibold">Choose play direction before the first move</div>
               <div className="flex gap-3">
                 <button
                   onClick={() => handleChooseDirection(1)}
-                  className="px-4 py-2 rounded-full bg-emerald-500 text-slate-900 font-semibold"
+                  className="px-4 py-2 rounded-full bg-emerald-500 text-slate-900 font-semibold text-sm"
                 >
                   Clockwise
                 </button>
                 <button
                   onClick={() => handleChooseDirection(-1)}
-                  className="px-4 py-2 rounded-full bg-sky-500 text-slate-900 font-semibold"
+                  className="px-4 py-2 rounded-full bg-sky-500 text-slate-900 font-semibold text-sm"
                 >
                   Counterclockwise
                 </button>
@@ -406,148 +469,161 @@ export default function Game() {
         </div>
       )}
 
-      <div className="relative w-full max-w-6xl aspect-[16/9] bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-slate-800/80 rounded-3xl border border-slate-700/50 overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <AnimatePresence>
-            {dealCards.map((card) => (
-              <motion.div
-                key={card.id}
-                className="absolute w-12 h-16 rounded-lg border border-slate-500/60 bg-slate-800 shadow-lg"
-                initial={{
-                  left: POINTS.draw.x,
-                  top: POINTS.draw.y,
-                  opacity: 0.6,
-                  scale: 0.75,
-                }}
-                animate={{
-                  left: POINTS[card.to].x,
-                  top: POINTS[card.to].y,
-                  opacity: 1,
-                  scale: 1,
-                }}
-                transition={{
-                  delay: card.delay,
-                  duration: 0.5,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-              />
-            ))}
-          </AnimatePresence>
+      <div className="w-full max-w-6xl mx-auto py-1 sm:py-3 flex items-center justify-center">
+        <div className="relative w-full max-w-[1080px] max-h-[58vh] sm:max-h-[74vh] aspect-[3/4] sm:aspect-[16/9] bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-slate-800/80 rounded-3xl border border-slate-700/50 overflow-hidden">
+          <div className="absolute inset-0 pointer-events-none">
+            <AnimatePresence>
+              {dealCards.map((card) => (
+                <motion.div
+                  key={card.id}
+                  className="absolute w-10 h-14 sm:w-12 sm:h-16 rounded-lg border border-slate-500/60 bg-slate-800 shadow-lg"
+                  initial={{
+                    left: POINTS.draw.x,
+                    top: POINTS.draw.y,
+                    opacity: 0.6,
+                    scale: 0.75,
+                  }}
+                  animate={{
+                    left: POINTS[card.to].x,
+                    top: POINTS[card.to].y,
+                    opacity: [0.6, 1, 0],
+                    scale: [0.75, 1, 0.96],
+                  }}
+                  transition={{
+                    delay: card.delay,
+                    duration: 0.75,
+                    ease: [0.16, 1, 0.3, 1],
+                    times: [0, 0.8, 1],
+                  }}
+                />
+              ))}
+            </AnimatePresence>
 
-          <AnimatePresence>
-            {flyCard && (
-              <motion.div
-                key={flyCard.id}
-                className={`absolute w-16 h-24 rounded-xl border border-slate-500/60 shadow-xl ${COLOR_STYLES[flyCard.color]}`}
-                initial={{
-                  left: POINTS[flyCard.from].x,
-                  top: POINTS[flyCard.from].y,
-                  opacity: 0.9,
-                  scale: 0.92,
-                }}
-                animate={{
-                  left: POINTS[flyCard.to].x,
-                  top: POINTS[flyCard.to].y,
-                  opacity: 1,
-                  scale: 1,
-                }}
-                transition={{
-                  delay: flyCard.delay ?? 0,
-                  duration: 0.5,
-                  ease: [0.16, 1, 0.3, 1],
-                }}
-                onAnimationComplete={() => setFlyCard(null)}
-              >
-                <span className="absolute inset-0 flex items-center justify-center text-sm font-bold">
-                  {flyCard.value}
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-        </div>
-
-        <AnimatePresence>
-          {dealCards.length > 0 && otherSeats.map(({ position, player }) => (
-            <motion.div
-              key={`deal-stack-${player.id}`}
-              className="absolute"
-              style={{ left: POINTS[position].x, top: POINTS[position].y }}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-            >
-              <div className="relative -translate-x-1/2 -translate-y-1/2">
-                <div className="w-10 h-14 rounded-md border border-slate-500/60 bg-slate-800 shadow-md" />
-                <div className="absolute -right-2 -top-2 px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-900/80 border border-slate-600 text-slate-200">
-                  {player.handCount}
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-
-        {otherSeats.map(({ position, player }) => (
-          <PlayerSeat
-            key={player.id}
-            name={player.name}
-            handCount={player.handCount}
-            hasCalledUno={player.hasCalledUno}
-            isCurrent={gameState.currentPlayerIndex === player.playerIndex}
-            position={position}
-          />
-        ))}
-
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-8">
-          <div className="flex flex-col items-center gap-2">
-            <div className="text-xs uppercase tracking-wide text-slate-400">Draw Pile</div>
-            <button
-              onClick={handleDraw}
-              disabled={!isMyTurn || isChallengePending || needsDirection || isGameFinished}
-              className={`w-20 h-28 rounded-xl border-2 border-slate-500/60 bg-slate-900/70 flex items-center justify-center ${
-                isMyTurn ? 'hover:border-emerald-400' : 'opacity-60'
-              }`}
-            >
-              <span className="text-sm">{gameState.drawPileCount}</span>
-            </button>
-            {gameState.hasDrawnThisTurn && (
-              <button
-                onClick={handleEndTurn}
-                disabled={isGameFinished}
-                className="text-xs uppercase tracking-wide text-slate-300 hover:text-white disabled:opacity-60"
-              >
-                End Turn
-              </button>
-            )}
+            <AnimatePresence>
+              {flyCard && (
+                <motion.div
+                  key={flyCard.id}
+                  className={`absolute w-14 h-20 sm:w-16 sm:h-24 rounded-xl border border-slate-500/60 shadow-xl ${COLOR_STYLES[flyCard.color]}`}
+                  initial={{
+                    left: POINTS[flyCard.from].x,
+                    top: POINTS[flyCard.from].y,
+                    opacity: 0.9,
+                    scale: 0.92,
+                  }}
+                  animate={{
+                    left: POINTS[flyCard.to].x,
+                    top: POINTS[flyCard.to].y,
+                    opacity: 1,
+                    scale: 1,
+                  }}
+                  transition={{
+                    delay: flyCard.delay ?? 0,
+                    duration: 0.5,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  onAnimationComplete={() => setFlyCard(null)}
+                >
+                  <span className="absolute inset-0 flex items-center justify-center text-sm font-bold">
+                    {flyCard.value}
+                  </span>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          <div className="flex flex-col items-center gap-2">
-            <div className="text-xs uppercase tracking-wide text-slate-400">Discard</div>
-            <div className={`w-20 h-28 rounded-xl border-2 border-slate-500/60 flex items-center justify-center ${COLOR_STYLES[gameState.topCard.color]}`}>
-              <span className="text-xl font-bold">{gameState.topCard.value}</span>
+          <div className="sm:hidden absolute inset-0 pointer-events-none">
+            {otherSeats.map(({ position, player }) => (
+              <div
+                key={'mobile-seat-overlay-' + player.id}
+                className="absolute -translate-x-1/2 -translate-y-1/2"
+                style={{ left: POINTS[position].x, top: POINTS[position].y }}
+              >
+                <div className="min-w-[78px] rounded-md border border-slate-700 bg-slate-900/85 px-2 py-1 text-center">
+                  <div className="text-[10px] leading-none text-slate-300 truncate max-w-[86px]">{player.name}</div>
+                  <div className="text-[10px] text-slate-200">{player.handCount} cards</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {otherSeats.map(({ position, player }) => (
+            <PlayerSeat
+              key={player.id}
+              name={player.name}
+              handCount={player.handCount}
+              hasCalledUno={player.hasCalledUno}
+              isCurrent={gameState.currentPlayerIndex === player.playerIndex}
+              position={position}
+            />
+          ))}
+
+          <div className="absolute left-1/2 top-[46%] sm:top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-4 sm:gap-8">
+            <div className="flex flex-col items-center gap-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-400">Draw Pile</div>
+              <button
+                onClick={handleDraw}
+                disabled={!isMyTurn || isChallengePending || needsDirection || isGameFinished}
+                className={`w-14 h-20 sm:w-16 sm:h-24 rounded-xl border-2 border-slate-500/60 bg-slate-900/70 flex items-center justify-center ${
+                  isMyTurn ? 'hover:border-emerald-400' : 'opacity-60'
+                }`}
+              >
+                <span className="text-sm">{gameState.drawPileCount}</span>
+              </button>
+              {gameState.hasDrawnThisTurn && (
+                <button
+                  onClick={handleEndTurn}
+                  disabled={isGameFinished}
+                  className="text-xs uppercase tracking-wide text-slate-300 hover:text-white disabled:opacity-60"
+                >
+                  End Turn
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-col items-center gap-2">
+              <div className="text-[11px] uppercase tracking-wide text-slate-400">Discard</div>
+              <div className={`w-14 h-20 sm:w-16 sm:h-24 rounded-xl border-2 border-slate-500/60 flex items-center justify-center ${COLOR_STYLES[gameState.topCard.color]}`}>
+                <span className="text-lg font-bold">{gameState.topCard.value}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="absolute left-1/2 bottom-3 sm:bottom-6 -translate-x-1/2 w-[94%] sm:w-[90%]">
+            <div className="flex items-end justify-start sm:justify-center gap-2 sm:gap-3 flex-nowrap overflow-x-auto pb-1 px-1">
+              {gameState.myPlayer.hand.map((card) => {
+                const playable = isPlayableCard(card, gameState, isMyTurn);
+                const isLastDrawn = gameState.lastDrawnCardId === card.id;
+                return (
+                  <motion.button
+                    key={card.id}
+                    onClick={() => handlePlayCard(card)}
+                    whileHover={playable ? { y: -5 } : undefined}
+                    className={`w-12 h-16 sm:w-14 sm:h-20 md:w-16 md:h-24 rounded-xl border-2 flex items-center justify-center transition ${
+                      playable ? 'border-emerald-400/80 shadow-lg shadow-emerald-400/20' : 'border-slate-700/60 opacity-70'
+                    } ${isLastDrawn ? 'ring-2 ring-amber-300' : ''} ${COLOR_STYLES[card.color]}`}
+                  >
+                    <span className="text-base font-bold">{card.value}</span>
+                  </motion.button>
+                );
+              })}
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="absolute left-1/2 bottom-6 -translate-x-1/2 w-[90%]">
-          <div className="flex items-end justify-center gap-3 flex-wrap">
-            {gameState.myPlayer.hand.map((card) => {
-              const playable = isPlayableCard(card, gameState, isMyTurn);
-              const isLastDrawn = gameState.lastDrawnCardId === card.id;
-              return (
-                <motion.button
-                  key={card.id}
-                  onClick={() => handlePlayCard(card)}
-                  whileHover={playable ? { y: -6 } : undefined}
-                  className={`w-20 h-28 rounded-xl border-2 flex items-center justify-center transition ${
-                    playable ? 'border-emerald-400/80 shadow-lg shadow-emerald-400/20' : 'border-slate-700/60 opacity-70'
-                  } ${isLastDrawn ? 'ring-2 ring-amber-300' : ''} ${COLOR_STYLES[card.color]}`}
-                >
-                  <span className="text-lg font-bold">{card.value}</span>
-                </motion.button>
-              );
-            })}
+      <div className="w-full max-w-6xl mx-auto mt-2 mb-3 shrink-0">
+        <div className="bg-slate-900/70 border border-slate-700 rounded-lg p-3">
+          <div className="text-sm uppercase tracking-wide text-slate-400 mb-2">Match Log</div>
+          <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
+            {logItems.length === 0 && (
+              <div className="text-sm text-slate-400">No events yet.</div>
+            )}
+            {logItems.map(item => (
+              <div key={item.id} className="text-sm text-slate-200 bg-slate-800/70 rounded px-2 py-1">
+                <span className="text-slate-400 mr-2">[{formatLogTime(item.createdAt)}]</span>
+                <span>{item.message}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -634,4 +710,3 @@ export default function Game() {
     </div>
   );
 }
-

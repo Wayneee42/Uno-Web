@@ -1,78 +1,74 @@
-import type { Card, CardColor } from './card';
+﻿import type { CardColor } from './card';
 import type { ClientGameState, PlayDirection } from './game';
 
-// ============= Client -> Server Events =============
-
-/** Create room payload */
 export interface CreateRoomPayload {
   playerName: string;
 }
 
-/** Join room payload */
 export interface JoinRoomPayload {
   roomId: string;
   playerName: string;
 }
 
-/** Ready payload */
+export interface ResumeSessionPayload {
+  sessionId: string;
+}
+
 export interface ReadyPayload {
   ready: boolean;
 }
 
-/** Play card payload */
 export interface PlayCardPayload {
   cardId: string;
   chosenColor?: CardColor;
 }
 
-/** Draw card payload */
-export interface DrawCardPayload {
-  // No extra params needed
-}
+export interface DrawCardPayload {}
 
-/** Call UNO payload */
-export interface CallUnoPayload {
-  // No extra params needed
-}
+export interface CallUnoPayload {}
 
-/** Challenge payload */
 export interface ChallengePayload {
   challenge: boolean;
 }
 
-/** Start game payload */
-export interface StartGamePayload {
-  // No extra params needed
-}
+export interface StartGamePayload {}
 
-/** End turn payload */
-export interface EndTurnPayload {
-  // No extra params needed
-}
+export interface EndTurnPayload {}
 
-/** Choose direction payload */
 export interface ChooseDirectionPayload {
   direction: PlayDirection;
 }
 
-/** Return to lobby payload */
-export interface ReturnToLobbyPayload {
-  // No extra params needed
-}
+export interface ReturnToLobbyPayload {}
 
-/** Game end payload */
+export interface PlayAgainPayload {}
+
 export interface GameEndPayload {
   reason?: string;
 }
-// ============= Server -> Client Events =============
 
-/** Error response */
 export interface ErrorPayload {
   message: string;
   code: string;
 }
 
-/** Room info */
+export const ERROR_CODES = {
+  JOIN_ROOM_FAILED: 'JOIN_ROOM_FAILED',
+  RESUME_SESSION_FAILED: 'RESUME_SESSION_FAILED',
+  START_GAME_FAILED: 'START_GAME_FAILED',
+  RETURN_TO_LOBBY_FAILED: 'RETURN_TO_LOBBY_FAILED',
+  PLAY_AGAIN_FAILED: 'PLAY_AGAIN_FAILED',
+  CHOOSE_DIRECTION_FAILED: 'CHOOSE_DIRECTION_FAILED',
+  PLAY_CARD_FAILED: 'PLAY_CARD_FAILED',
+  DRAW_CARD_FAILED: 'DRAW_CARD_FAILED',
+  END_TURN_FAILED: 'END_TURN_FAILED',
+  CALL_UNO_FAILED: 'CALL_UNO_FAILED',
+  CHALLENGE_FAILED: 'CHALLENGE_FAILED',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+} as const;
+
+export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
+
 export interface RoomInfo {
   roomId: string;
   players: Array<{
@@ -80,19 +76,54 @@ export interface RoomInfo {
     name: string;
     isReady: boolean;
     isHost: boolean;
+    connected: boolean;
   }>;
   minPlayers: number;
   maxPlayers: number;
   canStart: boolean;
 }
 
-/** Socket event type map - Client to Server */
+export interface PlayerPresencePayload {
+  playerId: string;
+  name: string;
+}
+
+export interface PlayerDisconnectedPayload extends PlayerPresencePayload {
+  graceMs: number;
+  expiresAt: number;
+}
+
+export interface SessionResponse {
+  room: RoomInfo;
+  playerId: string;
+  sessionId: string;
+}
+
+export interface JoinRoomResponse {
+  success: boolean;
+  room?: RoomInfo;
+  error?: string;
+  playerId?: string;
+  sessionId?: string;
+}
+
+export interface ResumeSessionResponse {
+  success: boolean;
+  room?: RoomInfo;
+  gameState?: ClientGameState;
+  playerId?: string;
+  sessionId?: string;
+  error?: string;
+}
+
 export interface ClientToServerEvents {
-  createRoom: (payload: CreateRoomPayload, callback: (room: RoomInfo) => void) => void;
-  joinRoom: (payload: JoinRoomPayload, callback: (response: { success: boolean; room?: RoomInfo; error?: string }) => void) => void;
+  createRoom: (payload: CreateRoomPayload, callback: (response: SessionResponse) => void) => void;
+  joinRoom: (payload: JoinRoomPayload, callback: (response: JoinRoomResponse) => void) => void;
+  resumeSession: (payload: ResumeSessionPayload, callback: (response: ResumeSessionResponse) => void) => void;
   leaveRoom: (callback: () => void) => void;
   ready: (payload: ReadyPayload) => void;
   startGame: (payload: StartGamePayload, callback: (response: { success: boolean; error?: string }) => void) => void;
+  playAgain: (payload: PlayAgainPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
   playCard: (payload: PlayCardPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
   drawCard: (payload: DrawCardPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
   endTurn: (payload: EndTurnPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
@@ -108,17 +139,20 @@ export interface ServerToClientEvents {
   gameEnd: (payload: GameEndPayload) => void;
   gameStateUpdate: (state: ClientGameState) => void;
   error: (payload: ErrorPayload) => void;
-  playerJoined: (player: { id: string; name: string }) => void;
+  playerJoined: (player: PlayerPresencePayload) => void;
   playerLeft: (playerId: string) => void;
+  playerDisconnected: (player: PlayerDisconnectedPayload) => void;
+  playerReconnected: (player: PlayerPresencePayload) => void;
 }
 
-/** Socket event name constants */
 export const SOCKET_EVENTS = {
   CREATE_ROOM: 'createRoom',
   JOIN_ROOM: 'joinRoom',
+  RESUME_SESSION: 'resumeSession',
   LEAVE_ROOM: 'leaveRoom',
   READY: 'ready',
   START_GAME: 'startGame',
+  PLAY_AGAIN: 'playAgain',
   PLAY_CARD: 'playCard',
   DRAW_CARD: 'drawCard',
   END_TURN: 'endTurn',
@@ -133,4 +167,6 @@ export const SOCKET_EVENTS = {
   ERROR: 'error',
   PLAYER_JOINED: 'playerJoined',
   PLAYER_LEFT: 'playerLeft',
+  PLAYER_DISCONNECTED: 'playerDisconnected',
+  PLAYER_RECONNECTED: 'playerReconnected',
 } as const;

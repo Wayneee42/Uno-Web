@@ -6,11 +6,13 @@ import { GameManager } from './GameManager';
 function makePlayers(count: number): Player[] {
   return Array.from({ length: count }, (_, index) => ({
     id: `p${index + 1}`,
+    sessionId: `session-${index + 1}`,
     name: `Player ${index + 1}`,
     hand: [],
     status: 'waiting',
     hasCalledUno: false,
-    socketId: `s${index + 1}`,
+    socketId: `sock-${index + 1}`,
+    connected: true,
   }));
 }
 
