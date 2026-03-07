@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+﻿import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientGameState } from '@uno-web/shared';
 import Game from './Game';
@@ -150,5 +151,56 @@ describe('Game', () => {
     expect(screen.getByText('Match Log')).toBeInTheDocument();
     expect(screen.getAllByText('Game started with 3 players.').length).toBeGreaterThan(0);
   });
-});
 
+  it('keeps the one-card warning without rendering an UNO button', () => {
+    mockUseGame.mockReturnValue({
+      gameState: baseState,
+      playCard: vi.fn(),
+      drawCard: vi.fn(),
+      endTurn: vi.fn(),
+      chooseDirection: vi.fn(),
+      challenge: vi.fn(),
+      leaveRoom: vi.fn(),
+      callUno: vi.fn(),
+      playAgain: vi.fn(),
+      returnToLobby: vi.fn(),
+      systemMessage: null,
+      globalError: null,
+      reconnectWaitList: [],
+      isConnected: true,
+    });
+
+    render(<Game />);
+    expect(screen.getByText('WARNING: ONE CARD LEFT')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'CALL UNO!' })).not.toBeInTheDocument();
+  });
+
+  it('confirms before leaving the current game', async () => {
+    const user = userEvent.setup();
+    const leaveRoom = vi.fn();
+
+    mockUseGame.mockReturnValue({
+      gameState: baseState,
+      playCard: vi.fn(),
+      drawCard: vi.fn(),
+      endTurn: vi.fn(),
+      chooseDirection: vi.fn(),
+      challenge: vi.fn(),
+      leaveRoom,
+      callUno: vi.fn(),
+      playAgain: vi.fn(),
+      returnToLobby: vi.fn(),
+      systemMessage: null,
+      globalError: null,
+      reconnectWaitList: [],
+      isConnected: true,
+    });
+
+    render(<Game />);
+    await user.click(screen.getByRole('button', { name: 'Leave Game' }));
+
+    expect(screen.getByText('Leave Game?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Leave Game', exact: true }));
+    expect(leaveRoom).toHaveBeenCalledTimes(1);
+  });
+});

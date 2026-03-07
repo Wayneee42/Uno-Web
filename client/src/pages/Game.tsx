@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Card, CardColor, ClientGameState } from '@uno-web/shared';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
@@ -75,13 +75,11 @@ function PlayerSeat({
   name,
   handCount,
   isCurrent,
-  hasCalledUno,
   position,
 }: {
   name: string;
   handCount: number;
   isCurrent: boolean;
-  hasCalledUno: boolean;
   position: 'left' | 'top' | 'right';
 }) {
   const showLastCard = handCount === 1;
@@ -107,11 +105,6 @@ function PlayerSeat({
             Last Card
           </div>
         )}
-        {hasCalledUno && (
-          <div className="absolute -bottom-2 right-1 lg:-right-3 bg-red-500 text-white text-[11px] font-black italic px-2.5 py-0.5 rounded-lg shadow-lg border border-red-300 transform rotate-12 animate-pulse">
-            UNO!
-          </div>
-        )}
       </div>
     </div>
   );
@@ -126,7 +119,6 @@ export default function Game() {
     chooseDirection,
     challenge,
     leaveRoom,
-    callUno,
     playAgain,
     returnToLobby,
     systemMessage,
@@ -138,6 +130,7 @@ export default function Game() {
   const [pendingWildCardId, setPendingWildCardId] = useState<string | null>(null);
   const [dealCards, setDealCards] = useState<DealCard[]>([]);
   const [flyCard, setFlyCard] = useState<FlyCard | null>(null);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const prevStateRef = useRef<ClientGameState | null>(null);
 
   if (!gameState) {
@@ -157,7 +150,6 @@ export default function Game() {
   const challengePreviousColor = gameState.challengeState?.previousColor ?? null;
   const isGameFinished = gameState.phase === 'finished';
   const isHost = gameState.myPlayer.id === gameState.hostId;
-  const canCallUno = isMyTurn && isLastCard && !gameState.myPlayer.hasCalledUno && !isGameFinished;
   const winnerName = gameState.winnerId === gameState.myPlayer.id
     ? gameState.myPlayer.name
     : gameState.otherPlayers.find(player => player.id === gameState.winnerId)?.name ?? null;
@@ -332,6 +324,11 @@ export default function Game() {
     }
   };
 
+  const handleLeaveGame = () => {
+    setShowLeaveConfirm(false);
+    leaveRoom();
+  };
+
   const logItems = [...gameState.eventLog].reverse();
 
   return (
@@ -390,7 +387,7 @@ export default function Game() {
             </button>
           )}
           <button
-            onClick={leaveRoom}
+            onClick={() => setShowLeaveConfirm(true)}
             className="px-5 py-2 text-sm font-bold rounded-xl bg-red-600 hover:bg-red-500 shadow-[0_0_15px_rgba(220,38,38,0.3)] transition-all"
           >
             Leave Game
@@ -398,6 +395,42 @@ export default function Game() {
         </div>
       </div>
 
+      <AnimatePresence>
+        {showLeaveConfirm && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="glass-panel border border-white/20 rounded-3xl p-6 sm:p-8 w-full max-w-sm shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+              initial={{ y: 20, opacity: 0, scale: 0.96 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              exit={{ y: 20, opacity: 0, scale: 0.96 }}
+            >
+              <h3 className="text-2xl font-black text-white tracking-tight mb-3">Leave Game?</h3>
+              <p className="text-sm text-slate-300 leading-6 mb-6">
+                You will leave the current match and return to the lobby flow. Rejoin with the room code if the room is still active.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setShowLeaveConfirm(false)}
+                  className="w-full rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-3 text-sm font-bold text-white transition-all"
+                >
+                  Stay
+                </button>
+                <button
+                  onClick={handleLeaveGame}
+                  className="w-full rounded-xl bg-red-600 hover:bg-red-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_20px_rgba(220,38,38,0.25)] transition-all"
+                >
+                  Leave Game
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {!isConnected && (
         <div className="w-full max-w-6xl mx-auto mb-3 bg-amber-500/20 text-amber-100 border border-amber-500/30 rounded-xl px-4 py-3 text-sm shrink-0 flex items-center gap-3 shadow-lg z-10">
           <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></div>
@@ -434,18 +467,7 @@ export default function Game() {
 
       {isLastCard && (
         <div className="w-full max-w-6xl mx-auto mb-3 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-xl px-4 py-3 text-center text-sm font-extrabold shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-pulse z-10">
-          {gameState.myPlayer.hasCalledUno ? 'UNO CALLED!' : 'WARNING: ONE CARD LEFT'}
-        </div>
-      )}
-
-      {canCallUno && (
-        <div className="w-full max-w-6xl mx-auto mb-3 flex justify-center shrink-0 z-10">
-          <button
-            onClick={callUno}
-            className="px-8 py-3 rounded-xl bg-gradient-to-r from-red-600 to-amber-500 text-white text-lg font-black tracking-widest shadow-[0_0_20px_rgba(239,68,68,0.5)] hover:scale-105 transition-transform"
-          >
-            CALL UNO!
-          </button>
+          WARNING: ONE CARD LEFT
         </div>
       )}
 
@@ -602,7 +624,6 @@ export default function Game() {
               key={player.id}
               name={player.name}
               handCount={player.handCount}
-              hasCalledUno={player.hasCalledUno}
               isCurrent={gameState.currentPlayerIndex === player.playerIndex}
               position={position}
             />
@@ -800,3 +821,5 @@ export default function Game() {
     </div>
   );
 }
+
+

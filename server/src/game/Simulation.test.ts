@@ -79,10 +79,6 @@ function simulateTurn(manager: GameManager, state: GameState): void {
   }
 
   const current = getCurrentPlayer(state);
-  if (current.hand.length === 1 && !current.hasCalledUno) {
-    const unoResult = manager.callUno(state, current.id);
-    expect(unoResult.success).toBe(true);
-  }
 
   const playable = findPlayableCard(state, current);
   if (playable) {
@@ -144,4 +140,3 @@ describe('Game simulation', () => {
     }
   });
 });
-

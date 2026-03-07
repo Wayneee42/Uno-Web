@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+﻿import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Lobby from './Lobby';
@@ -20,6 +20,7 @@ describe('Lobby', () => {
       room: null,
       createRoom: vi.fn(),
       joinRoom: vi.fn(),
+      leaveRoom: vi.fn(),
       setReady: vi.fn(),
       startGame: vi.fn(),
       playerId: 'p1',
@@ -39,6 +40,7 @@ describe('Lobby', () => {
       room: null,
       createRoom: vi.fn(),
       joinRoom: vi.fn(),
+      leaveRoom: vi.fn(),
       setReady: vi.fn(),
       startGame: vi.fn(),
       playerId: 'p1',
@@ -64,6 +66,7 @@ describe('Lobby', () => {
       },
       createRoom: vi.fn(),
       joinRoom: vi.fn(),
+      leaveRoom: vi.fn(),
       setReady: vi.fn(),
       startGame: vi.fn(),
       playerId: 'p1',
@@ -85,6 +88,7 @@ describe('Lobby', () => {
       room: null,
       createRoom: vi.fn(),
       joinRoom: vi.fn(),
+      leaveRoom: vi.fn(),
       setReady: vi.fn(),
       startGame: vi.fn(),
       playerId: 'p1',
@@ -96,5 +100,36 @@ describe('Lobby', () => {
     render(<Lobby />);
     expect(screen.getByText('Server encountered an unexpected error.')).toBeInTheDocument();
   });
-});
 
+  it('confirms before leaving an active room', async () => {
+    const user = userEvent.setup();
+    const leaveRoom = vi.fn();
+
+    mockUseGame.mockReturnValue({
+      isConnected: true,
+      room: {
+        roomId: 'ROOM1',
+        players: [{ id: 'p1', name: 'Alice', isReady: false, isHost: true, connected: true }],
+        minPlayers: 2,
+        maxPlayers: 4,
+        canStart: false,
+      },
+      createRoom: vi.fn(),
+      joinRoom: vi.fn(),
+      leaveRoom,
+      setReady: vi.fn(),
+      startGame: vi.fn(),
+      playerId: 'p1',
+      systemMessage: null,
+      globalError: null,
+      reconnectWaitList: [],
+    });
+
+    render(<Lobby />);
+    await user.click(screen.getByRole('button', { name: 'Exit Room' }));
+
+    expect(screen.getByText('Exit Room?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Exit Room', exact: true }));
+    expect(leaveRoom).toHaveBeenCalledTimes(1);
+  });
+});

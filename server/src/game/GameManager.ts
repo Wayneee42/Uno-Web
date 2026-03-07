@@ -507,14 +507,6 @@ export class GameManager {
   }
 
   private advanceTurn(state: GameState): void {
-    const previousPlayer = state.players[state.currentPlayerIndex];
-    if (previousPlayer.hand.length === 1 && !previousPlayer.hasCalledUno) {
-      const penaltyCards = this.drawCards(state, 2);
-      previousPlayer.hand.push(...penaltyCards);
-      this.syncUnoStatus(previousPlayer);
-      this.appendLog(state, `${previousPlayer.name} forgot UNO and drew 2 penalty cards.`);
-    }
-
     state.currentPlayerIndex = this.getNextPlayerIndex(state);
     state.hasDrawnThisTurn = false;
     state.lastDrawnCardId = null;
@@ -590,4 +582,3 @@ export class GameManager {
 }
 
 export const gameManager = new GameManager();
-

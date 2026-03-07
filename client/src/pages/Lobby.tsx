@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
 
@@ -28,6 +28,7 @@ export default function Lobby() {
     room,
     createRoom,
     joinRoom,
+    leaveRoom,
     setReady,
     startGame,
     playerId,
@@ -42,6 +43,7 @@ export default function Lobby() {
   const [info, setInfo] = useState('');
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [copyToast, setCopyToast] = useState<string | null>(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const copyToastTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -128,6 +130,11 @@ export default function Lobby() {
     if (!result.success) {
       setError(result.error || 'Failed to start game');
     }
+  };
+
+  const handleExitRoom = () => {
+    setShowExitConfirm(false);
+    leaveRoom();
   };
 
   const fallbackCopyText = (text: string): boolean => {
@@ -223,8 +230,45 @@ export default function Lobby() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <AnimatePresence>
+          {showExitConfirm && (
+            <motion.div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="glass-panel border border-white/20 rounded-3xl p-6 sm:p-8 w-full max-w-sm shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+                initial={{ y: 20, opacity: 0, scale: 0.96 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: 20, opacity: 0, scale: 0.96 }}
+              >
+                <h3 className="text-2xl font-black text-white tracking-tight mb-3">Exit Room?</h3>
+                <p className="text-sm text-slate-300 leading-6 mb-6">
+                  You will leave room {room.roomId}. You can still rejoin later with the room ID or invite link if the room stays open.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setShowExitConfirm(false)}
+                    className="w-full rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 px-4 py-3 text-sm font-bold text-white transition-all"
+                  >
+                    Stay
+                  </button>
+                  <button
+                    onClick={handleExitRoom}
+                    className="w-full rounded-xl bg-red-600 hover:bg-red-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_20px_rgba(220,38,38,0.25)] transition-all"
+                  >
+                    Exit Room
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="glass-panel rounded-2xl p-6 sm:p-8 w-full max-w-md relative overflow-hidden">
-          {/* Decorative background glow */}
           <div className="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl"></div>
 
           <div className="flex items-center justify-between gap-2 mb-2 relative z-10">
@@ -344,6 +388,13 @@ export default function Lobby() {
                 Start Game
               </button>
             )}
+
+            <button
+              onClick={() => setShowExitConfirm(true)}
+              className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold py-3.5 px-4 rounded-xl transition-all"
+            >
+              Exit Room
+            </button>
           </div>
         </div>
       </div>
@@ -497,4 +548,3 @@ export default function Lobby() {
     </div>
   );
 }
-
