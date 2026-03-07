@@ -1,49 +1,37 @@
-﻿# Repository Guidelines
+# Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository is an npm workspace monorepo:
-- `client/`: React + Vite frontend (`src/components`, `src/pages`, `src/contexts`)
-- `server/`: Node + Express + Socket.IO backend (`src/game`, `src/socket`, `src/utils`)
-- `shared/`: Shared TypeScript types/contracts consumed by client and server
-- `docs/`: Project notes, task logs, and testing documentation
+This repository is a TypeScript monorepo with three workspaces:
 
-Keep cross-module game contracts in `shared/src/types` first, then consume them from `client` and `server`.
+- `client/`: Vite + React frontend. Main app code lives in `client/src`, static assets in `client/public`.
+- `server/`: Express + Socket.IO backend. Entry point is `server/src/index.ts`; game and socket logic live under `server/src/game` and `server/src/socket`.
+- `shared/`: Shared types and cross-package utilities in `shared/src`.
+- `docs/`: project notes and deployment/testing docs.
+
+Keep shared contracts in `shared` and import them through `@uno-web/shared` instead of duplicating types.
 
 ## Build, Test, and Development Commands
-Run all commands from repository root unless noted.
-- `npm run dev`: Builds `shared`, then starts client/server/shared watchers concurrently.
-- `npm run build`: Builds all workspaces in dependency order.
-- `npm run start`: Starts compiled server (`server/dist/index.js`).
-- `npm run test`: Runs tests in all workspaces.
-- `npm run test --workspace=client|server|shared`: Runs tests for one package.
-
-Example: `npm run test --workspace=server` for backend logic only.
+- `npm run dev`: builds `shared` first, then starts client, server, and shared watch tasks together.
+- `npm run build`: builds all three workspaces in dependency order.
+- `npm run test`: runs Vitest across all workspaces.
+- `npm run test --workspace=client`: runs frontend tests in `jsdom`.
+- `npm run test --workspace=server`: runs backend tests in `node`.
+- `npm run start`: starts the compiled server from `server/dist`.
 
 ## Coding Style & Naming Conventions
-- Language: TypeScript across all workspaces.
-- Indentation: 2 spaces; include semicolons.
-- Naming: `PascalCase` for React components/types, `camelCase` for variables/functions, descriptive file names (e.g., `RoomManager.ts`, `GameContext.tsx`).
-- Tests: colocate with source using `*.test.ts` or `*.test.tsx`.
+Use 2-space indentation, LF line endings, UTF-8, and a final newline; these are enforced by `.editorconfig`. Prettier settings require single quotes, semicolons, trailing commas, `printWidth: 100`, and no parens for single-arg arrows.
 
-No dedicated lint script is currently defined; rely on `tsc`, Vitest, and existing code style in touched files.
+Name React components and classes in `PascalCase`, functions and variables in `camelCase`, and test files as `*.test.ts` or `*.test.tsx`.
 
 ## Testing Guidelines
-- Framework: Vitest in all workspaces.
-- Environments: client uses `jsdom`; server/shared use `node`.
-- Add/update tests for every gameplay rule, socket handler, and shared type change.
-- Favor deterministic assertions for game logic; keep simulation tests for cross-module confidence.
+Vitest is the standard test runner in every workspace. Client tests use Testing Library with setup from `client/src/setupTests.ts`; server and shared tests run in Node.
+
+Add or update tests with every behavior change, especially around room flow, game simulation, socket handlers, and shared type guards. Prefer focused unit tests plus integration coverage for cross-module behavior.
 
 ## Commit & Pull Request Guidelines
-Recent history uses short, imperative summaries (e.g., `update game logic`, `add tests and other improvements`). Follow this style:
-- Keep subject concise and action-oriented.
-- Scope one logical change per commit.
+Recent history favors short, imperative commit subjects such as `fix`, `UI`, and `public`; use a more descriptive version of that style, for example `fix lobby reconnect flow`. Keep one logical change per commit.
 
-For pull requests:
-- Explain what changed and why.
-- Link related issue/task when available.
-- Include UI screenshots/GIFs for `client` visual changes.
-- Confirm `npm run test` and relevant workspace builds pass.
+PRs should explain the user-visible change, note affected workspaces, list test commands run, and include screenshots for UI changes. Link related issues or task docs when available.
 
 ## Security & Configuration Tips
-- Use `.env` for local secrets; never commit real credentials.
-- Keep `.env.example` updated when adding new environment variables.
+Copy `.env.example` when setting up local server configuration. Do not commit real secrets or environment-specific URLs. Validate CORS, socket event, and shared game-state changes across both client and server before merging.
