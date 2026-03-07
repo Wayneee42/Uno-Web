@@ -9,8 +9,8 @@ import type {
   SessionResponse,
 } from '@uno-web/shared';
 import { ERROR_CODES } from '@uno-web/shared';
-import { gameManager } from '../game/GameManager';
-import { createHttpServer } from '../server';
+import { gameManager } from '../game/GameManager.js';
+import { createHttpServer } from '../server.js';
 
 const waitForEvent = <T>(socket: ReturnType<typeof createClient>, event: string, timeoutMs = 5000) =>
   new Promise<T>((resolve, reject) => {
@@ -395,3 +395,4 @@ describe('socket handlers', () => {
     }
   }, 20000);
 });
+

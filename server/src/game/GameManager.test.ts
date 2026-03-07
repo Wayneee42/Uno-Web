@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from 'vitest';
-import { GameManager } from './GameManager';
-import { createDeck } from './DeckManager';
+import { GameManager } from './GameManager.js';
+import { createDeck } from './DeckManager.js';
 import type { Player } from '@uno-web/shared';
 
 describe('GameManager', () => {
@@ -24,3 +24,4 @@ describe('GameManager', () => {
     expect(totalHandCards + state.drawPile.length + state.discardPile.length).toBe(deckSize);
   });
 });
+

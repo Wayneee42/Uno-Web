@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from 'vitest';
-import { canPlayCard, createDeck, shuffleDeck } from './DeckManager';
+import { canPlayCard, createDeck, shuffleDeck } from './DeckManager.js';
 
 const topCard = { id: 't1', color: 'Red', value: '5' };
 
@@ -22,3 +22,4 @@ describe('DeckManager', () => {
     expect(canPlayCard({ id: 'c4', color: 'Wild', value: 'Wild' }, topCard, null)).toBe(true);
   });
 });
+

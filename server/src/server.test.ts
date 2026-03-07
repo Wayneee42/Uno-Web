@@ -1,7 +1,7 @@
-import request from 'supertest';
+﻿import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@uno-web/shared';
-import { attachErrorMiddleware, createApp } from './server';
+import { attachErrorMiddleware, createApp } from './server.js';
 
 describe('server http error handling', () => {
   it('returns a normalized internal error response for thrown route errors', async () => {
@@ -23,3 +23,4 @@ describe('server http error handling', () => {
     });
   });
 });
+

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { RoomManager } from './RoomManager';
+﻿import { describe, expect, it } from 'vitest';
+import { RoomManager } from './RoomManager.js';
 
 describe('RoomManager', () => {
   it('creates rooms, tracks stable identities, and restores disconnected players', () => {
@@ -45,3 +45,4 @@ describe('RoomManager', () => {
     expect(manager.canStartGame(created.playerId)).toBe(true);
   });
 });
+

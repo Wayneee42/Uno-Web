@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from 'vitest';
-import { resolveSocketCorsOrigin } from './cors';
+import { resolveSocketCorsOrigin } from './cors.js';
 
 describe('resolveSocketCorsOrigin', () => {
   it('falls back to localhost when origin is missing', () => {
@@ -21,3 +21,4 @@ describe('resolveSocketCorsOrigin', () => {
     ]);
   });
 });
+

@@ -7,9 +7,9 @@
   type ClientToServerEvents,
 } from '@uno-web/shared';
 import type { Server, Socket } from 'socket.io';
-import { gameManager } from '../game/GameManager';
-import { roomManager } from '../game/RoomManager';
-import { logger, normalizeError } from '../utils/logger';
+import { gameManager } from '../game/GameManager.js';
+import { roomManager } from '../game/RoomManager.js';
+import { logger, normalizeError } from '../utils/logger.js';
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type Ack = ((response?: any) => void) | undefined;
@@ -635,3 +635,4 @@ function broadcastGameState(
     return false;
   }
 }
+

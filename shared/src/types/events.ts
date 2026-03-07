@@ -1,5 +1,5 @@
-﻿import type { CardColor } from './card';
-import type { ClientGameState, PlayDirection } from './game';
+﻿import type { CardColor } from './card.js';
+import type { ClientGameState, PlayDirection } from './game.js';
 
 export interface CreateRoomPayload {
   playerName: string;
@@ -170,3 +170,4 @@ export const SOCKET_EVENTS = {
   PLAYER_DISCONNECTED: 'playerDisconnected',
   PLAYER_RECONNECTED: 'playerReconnected',
 } as const;
+

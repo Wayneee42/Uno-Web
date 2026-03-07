@@ -8,7 +8,7 @@
   Player,
 } from '@uno-web/shared';
 import { toClientGameState as mapToClientGameState } from '@uno-web/shared';
-import { canPlayCard, createDeck, shuffleDeck } from './DeckManager';
+import { canPlayCard, createDeck, shuffleDeck } from './DeckManager.js';
 
 const HAND_SIZE = 7;
 const MAX_RESHUFFLES = 20;
@@ -590,3 +590,4 @@ export class GameManager {
 }
 
 export const gameManager = new GameManager();
+

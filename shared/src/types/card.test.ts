@@ -5,7 +5,7 @@ import {
   isStackableCard,
   isWildCard,
   isWildDraw4Card,
-} from './card';
+} from './card.js';
 
 const base = { id: 'c1', color: 'Red', value: '1' } as const;
 
@@ -30,3 +30,4 @@ describe('card utils', () => {
     expect(isStackableCard(base)).toBe(false);
   });
 });
+

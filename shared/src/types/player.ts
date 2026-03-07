@@ -1,4 +1,4 @@
-﻿import type { Card } from './card';
+﻿import type { Card } from './card.js';
 
 export type PlayerStatus = 'waiting' | 'ready' | 'playing' | 'finished';
 
@@ -34,3 +34,4 @@ export function toPublicPlayer(player: Player, playerIndex: number): PublicPlaye
     connected: player.connected,
   };
 }
+

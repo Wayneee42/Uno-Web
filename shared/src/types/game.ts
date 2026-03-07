@@ -1,5 +1,5 @@
-﻿import type { Card, CardColor } from './card';
-import type { Player, PublicPlayer } from './player';
+﻿import type { Card, CardColor } from './card.js';
+import type { Player, PublicPlayer } from './player.js';
 
 export type GamePhase = 'waiting' | 'dealing' | 'playing' | 'finished';
 
@@ -117,3 +117,4 @@ export function getNextPlayerIndex(
 ): number {
   return (currentIndex + direction + totalPlayers) % totalPlayers;
 }
+

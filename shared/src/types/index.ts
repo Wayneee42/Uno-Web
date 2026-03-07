@@ -1,5 +1,6 @@
-export * from './card';
-export * from './player';
-export * from './game';
-export * from './events';
+﻿export * from './card.js';
+export * from './player.js';
+export * from './game.js';
+export * from './events.js';
+
 

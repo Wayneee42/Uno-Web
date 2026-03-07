@@ -2,9 +2,9 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { ERROR_CODES } from '@uno-web/shared';
-import { resolveSocketCorsOrigin } from './config/cors';
-import { registerSocketHandlers } from './socket/handlers';
-import { logger, normalizeError } from './utils/logger';
+import { resolveSocketCorsOrigin } from './config/cors.js';
+import { registerSocketHandlers } from './socket/handlers.js';
+import { logger, normalizeError } from './utils/logger.js';
 
 export function attachErrorMiddleware(app: Express) {
   app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
@@ -49,3 +49,4 @@ export function createHttpServer() {
 
   return { app, httpServer, io };
 }
+

@@ -1,7 +1,7 @@
 ﻿import { describe, expect, it, vi } from 'vitest';
 import type { Card, GameState, Player } from '@uno-web/shared';
-import { canPlayCard } from './DeckManager';
-import { GameManager } from './GameManager';
+import { canPlayCard } from './DeckManager.js';
+import { GameManager } from './GameManager.js';
 
 function seedRandom(seed = 42) {
   let state = seed;
@@ -144,3 +144,4 @@ describe('Game simulation', () => {
     }
   });
 });
+

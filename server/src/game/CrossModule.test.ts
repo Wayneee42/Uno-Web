@@ -1,7 +1,7 @@
 ﻿import { describe, expect, it } from 'vitest';
 import type { Player } from '@uno-web/shared';
 import { toClientGameState } from '@uno-web/shared';
-import { GameManager } from './GameManager';
+import { GameManager } from './GameManager.js';
 
 function makePlayers(count: number): Player[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -30,3 +30,4 @@ describe('Cross-module compatibility', () => {
     expect(clientState.isDraw).toBe(false);
   });
 });
+

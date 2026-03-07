@@ -1,6 +1,6 @@
-import 'dotenv/config';
-import { createHttpServer } from './server';
-import { logger, normalizeError } from './utils/logger';
+﻿import 'dotenv/config';
+import { createHttpServer } from './server.js';
+import { logger, normalizeError } from './utils/logger.js';
 
 const { httpServer } = createHttpServer();
 
@@ -29,3 +29,4 @@ process.on('uncaughtException', (error) => {
 httpServer.listen(PORT, '0.0.0.0', () => {
   logger.info('server.started', { port: PORT });
 });
+

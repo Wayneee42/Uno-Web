@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from 'vitest';
-import type { GameState } from './game';
-import { getNextPlayerIndex, toClientGameState } from './game';
+import type { GameState } from './game.js';
+import { getNextPlayerIndex, toClientGameState } from './game.js';
 
 const baseState: GameState = {
   roomId: 'ROOM1',
@@ -60,4 +60,5 @@ describe('game utils', () => {
     expect(clientState.topCard.value).toBe('3');
   });
 });
+
 

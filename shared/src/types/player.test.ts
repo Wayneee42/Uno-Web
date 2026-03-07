@@ -1,6 +1,6 @@
 ﻿import { describe, expect, it } from 'vitest';
-import type { Player } from './player';
-import { toPublicPlayer } from './player';
+import type { Player } from './player.js';
+import { toPublicPlayer } from './player.js';
 
 describe('player utils', () => {
   it('maps player to public player', () => {
@@ -28,3 +28,4 @@ describe('player utils', () => {
     });
   });
 });
+
