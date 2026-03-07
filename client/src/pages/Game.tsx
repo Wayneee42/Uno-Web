@@ -83,33 +83,35 @@ function PlayerSeat({
   position: 'left' | 'top' | 'right';
 }) {
   const showLastCard = handCount === 1;
+  const isTopSeat = position === 'top';
   const positionClass = {
-    left: 'hidden sm:block sm:left-6 sm:top-[45%] sm:-translate-y-1/2',
-    top: 'hidden sm:block sm:top-6 sm:left-1/2 sm:-translate-x-1/2',
-    right: 'hidden sm:block sm:right-6 sm:top-[45%] sm:-translate-y-1/2',
+    left: 'hidden sm:block sm:left-3 lg:left-6 xl:left-8 sm:top-[47%] lg:top-1/2 sm:-translate-y-1/2',
+    top: 'hidden sm:block sm:top-3 lg:top-4 sm:left-1/2 sm:-translate-x-1/2',
+    right: 'hidden sm:block sm:right-3 lg:right-6 xl:right-8 sm:top-[47%] lg:top-1/2 sm:-translate-y-1/2',
   }[position];
 
   return (
-    <div className={`absolute ${positionClass} z-10 transition-transform duration-300 ${isCurrent ? 'scale-110' : 'scale-100'}`}>
-      <div className={`relative flex flex-col items-center justify-center p-3 rounded-2xl backdrop-blur-md transition-all ${
-        isCurrent ? 'bg-white/10 border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.3)]' : 'bg-black/40 border border-white/10'
-      }`}>
-        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl mb-2 shadow-inner border border-white/20">
+    <div className={`absolute ${positionClass} z-10 transition-transform duration-300 ${isCurrent ? 'scale-105 lg:scale-110' : 'scale-95 lg:scale-100'}`}>
+      <div
+        className={`relative flex flex-col items-center justify-center rounded-2xl backdrop-blur-md transition-all ${
+          isTopSeat ? 'px-4 py-2.5' : 'p-3'
+        } ${
+          isCurrent ? 'bg-white/10 border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.3)]' : 'bg-black/40 border border-white/10'
+        }`}
+      >
+        <div className={`${isTopSeat ? 'w-10 h-10 text-lg mb-1.5' : 'w-12 h-12 text-xl mb-2'} rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-inner border border-white/20`}>
           {name.charAt(0).toUpperCase()}
         </div>
-        <div className="text-white font-bold text-sm tracking-wide truncate max-w-[80px] text-center drop-shadow-md">{name}</div>
-        <div className="text-slate-300 text-xs bg-black/40 rounded-full px-2.5 py-0.5 mt-1 border border-white/5">{handCount} cards</div>
-
-        {showLastCard && (
-          <div className="absolute -top-2 -right-2 bg-amber-500 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg border border-amber-300">
-            Last Card
-          </div>
-        )}
+        <div className={`${isTopSeat ? 'text-xs max-w-[96px]' : 'text-sm max-w-[80px]'} text-white font-bold tracking-wide truncate text-center drop-shadow-md`}>
+          {name}
+        </div>
+        <div className={`${isTopSeat ? 'text-[11px] px-2 py-0.5 mt-1' : 'text-xs px-2.5 py-0.5 mt-1'} text-slate-300 bg-black/40 rounded-full border border-white/5`}>
+          {handCount} cards
+        </div>
       </div>
     </div>
   );
 }
-
 export default function Game() {
   const {
     gameState,
@@ -629,7 +631,7 @@ export default function Game() {
             />
           ))}
 
-          <div className="absolute left-1/2 top-[42%] sm:top-[45%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-10 sm:gap-16 z-0 scale-90 sm:scale-100">
+          <div className="absolute left-1/2 top-[42%] sm:top-[40%] lg:top-[42%] xl:top-[44%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-10 sm:gap-20 lg:gap-24 z-0 scale-90 sm:scale-95 xl:scale-100">
             <div className="flex flex-col items-center gap-3">
               <div className="text-[11px] uppercase tracking-widest font-black text-white/50 drop-shadow">Draw</div>
               <button
@@ -653,7 +655,7 @@ export default function Game() {
                 <button
                   onClick={handleEndTurn}
                   disabled={isGameFinished}
-                  className="absolute -bottom-10 px-4 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-white/20 text-[10px] font-bold uppercase tracking-widest text-white transition-colors shadow-lg z-20 hover:scale-105 whitespace-nowrap"
+                  className="absolute -bottom-10 sm:-bottom-12 lg:-bottom-14 px-4 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-white/20 text-[10px] font-bold uppercase tracking-widest text-white transition-colors shadow-lg z-20 hover:scale-105 whitespace-nowrap"
                 >
                   End Turn
                 </button>
@@ -677,7 +679,7 @@ export default function Game() {
             </div>
           </div>
 
-          <div className="absolute left-1/2 bottom-2 sm:bottom-6 -translate-x-1/2 w-[98%] sm:w-[90%] z-20">
+          <div className="absolute left-1/2 bottom-2 sm:bottom-4 lg:bottom-6 -translate-x-1/2 w-[98%] sm:w-[92%] xl:w-[90%] z-20">
             <div className="flex items-end justify-start sm:justify-center flex-nowrap overflow-x-auto pb-4 pt-12 px-4 scrollbar-hide">
               {gameState.myPlayer.hand.map((card, idx) => {
                 const playable = isPlayableCard(card, gameState, isMyTurn);
@@ -821,5 +823,7 @@ export default function Game() {
     </div>
   );
 }
+
+
 
 
