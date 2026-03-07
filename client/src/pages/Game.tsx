@@ -85,27 +85,27 @@ function PlayerSeat({
   const showLastCard = handCount === 1;
   const isTopSeat = position === 'top';
   const positionClass = {
-    left: 'hidden sm:block sm:left-3 lg:left-6 xl:left-8 sm:top-[47%] lg:top-1/2 sm:-translate-y-1/2',
-    top: 'hidden sm:block sm:top-3 lg:top-4 sm:left-1/2 sm:-translate-x-1/2',
-    right: 'hidden sm:block sm:right-3 lg:right-6 xl:right-8 sm:top-[47%] lg:top-1/2 sm:-translate-y-1/2',
+    left: 'hidden sm:block sm:left-3 lg:left-5 xl:left-8 sm:top-[47%] lg:top-[44%] xl:top-[46%] sm:-translate-y-1/2',
+    top: 'hidden sm:block sm:top-3 lg:top-2 xl:top-3 sm:left-1/2 sm:-translate-x-1/2',
+    right: 'hidden sm:block sm:right-3 lg:right-5 xl:right-8 sm:top-[47%] lg:top-[44%] xl:top-[46%] sm:-translate-y-1/2',
   }[position];
 
   return (
-    <div className={`absolute ${positionClass} z-10 transition-transform duration-300 ${isCurrent ? 'scale-105 lg:scale-110' : 'scale-95 lg:scale-100'}`}>
+    <div className={`absolute ${positionClass} z-10 transition-transform duration-300 ${isCurrent ? 'scale-100 lg:scale-105' : 'scale-90 lg:scale-95'}`}>
       <div
         className={`relative flex flex-col items-center justify-center rounded-2xl backdrop-blur-md transition-all ${
-          isTopSeat ? 'px-4 py-2.5' : 'p-3'
+          isTopSeat ? 'px-3 py-2 sm:px-4 sm:py-2.5 lg:px-3 lg:py-2' : 'p-2.5 sm:p-3 lg:p-2.5'
         } ${
           isCurrent ? 'bg-white/10 border-2 border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.3)]' : 'bg-black/40 border border-white/10'
         }`}
       >
-        <div className={`${isTopSeat ? 'w-10 h-10 text-lg mb-1.5' : 'w-12 h-12 text-xl mb-2'} rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-inner border border-white/20`}>
+        <div className={`${isTopSeat ? 'w-9 h-9 text-base mb-1 sm:w-10 sm:h-10 sm:text-lg sm:mb-1.5' : 'w-10 h-10 text-lg mb-1.5 sm:w-12 sm:h-12 sm:text-xl sm:mb-2 lg:w-10 lg:h-10 lg:text-lg lg:mb-1.5'} rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-inner border border-white/20`}>
           {name.charAt(0).toUpperCase()}
         </div>
-        <div className={`${isTopSeat ? 'text-xs max-w-[96px]' : 'text-sm max-w-[80px]'} text-white font-bold tracking-wide truncate text-center drop-shadow-md`}>
+        <div className={`${isTopSeat ? 'text-[11px] max-w-[88px] sm:text-xs sm:max-w-[96px]' : 'text-xs max-w-[72px] sm:text-sm sm:max-w-[80px] lg:text-xs lg:max-w-[72px]'} text-white font-bold tracking-wide truncate text-center drop-shadow-md`}>
           {name}
         </div>
-        <div className={`${isTopSeat ? 'text-[11px] px-2 py-0.5 mt-1' : 'text-xs px-2.5 py-0.5 mt-1'} text-slate-300 bg-black/40 rounded-full border border-white/5`}>
+        <div className={`${isTopSeat ? 'text-[10px] px-2 py-0.5 mt-1 sm:text-[11px]' : 'text-[11px] px-2 py-0.5 mt-1 sm:text-xs sm:px-2.5 lg:text-[11px] lg:px-2'} text-slate-300 bg-black/40 rounded-full border border-white/5`}>
           {handCount} cards
         </div>
       </div>
@@ -631,13 +631,13 @@ export default function Game() {
             />
           ))}
 
-          <div className="absolute left-1/2 top-[42%] sm:top-[40%] lg:top-[42%] xl:top-[44%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-10 sm:gap-20 lg:gap-24 z-0 scale-90 sm:scale-95 xl:scale-100">
+          <div className="absolute left-1/2 top-[42%] sm:top-[38%] lg:top-[35%] xl:top-[38%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-10 sm:gap-16 lg:gap-20 xl:gap-24 z-0 scale-90 sm:scale-90 lg:scale-[0.82] xl:scale-[0.9]">
             <div className="flex flex-col items-center gap-3">
               <div className="text-[11px] uppercase tracking-widest font-black text-white/50 drop-shadow">Draw</div>
               <button
                 onClick={handleDraw}
                 disabled={!isMyTurn || isChallengePending || needsDirection || isGameFinished}
-                className={`group relative w-16 h-24 sm:w-20 sm:h-32 rounded-xl border-2 border-white/20 bg-gradient-to-br from-slate-800 to-black shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center transition-all duration-300 ${
+                className={`group relative w-16 h-24 sm:w-20 sm:h-32 lg:w-16 lg:h-24 xl:w-20 xl:h-32 rounded-xl border-2 border-white/20 bg-gradient-to-br from-slate-800 to-black shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center transition-all duration-300 ${
                   isMyTurn ? 'hover:-translate-y-2 hover:border-white/50 hover:shadow-[0_15px_40px_rgba(255,255,255,0.15)] cursor-pointer' : 'opacity-80'
                 }`}
               >
@@ -645,8 +645,8 @@ export default function Game() {
                 <div className="absolute inset-0 rounded-xl border-2 border-white/10 bg-slate-800 translate-x-1 -translate-y-1 -z-10 opacity-70"></div>
                 <div className="absolute inset-0 rounded-xl border-2 border-white/10 bg-slate-800 translate-x-1.5 -translate-y-1.5 -z-20 opacity-40"></div>
 
-                <div className="w-12 h-20 sm:w-16 sm:h-28 border border-white/10 rounded-lg flex items-center justify-center bg-black/40">
-                  <span className={`text-xl sm:text-2xl font-black italic drop-shadow-md transition-colors ${
+                <div className="w-12 h-20 sm:w-16 sm:h-28 lg:w-12 lg:h-20 xl:w-16 xl:h-28 border border-white/10 rounded-lg flex items-center justify-center bg-black/40">
+                  <span className={`text-xl sm:text-2xl lg:text-xl xl:text-2xl font-black italic drop-shadow-md transition-colors ${
                     isMyTurn ? 'text-emerald-400 group-hover:text-emerald-300' : 'text-slate-500'
                   }`}>UNO</span>
                 </div>
@@ -664,9 +664,9 @@ export default function Game() {
 
             <div className="flex flex-col items-center gap-3">
               <div className="text-[11px] uppercase tracking-widest font-black text-white/50 drop-shadow">Discard</div>
-              <div className={`w-16 h-24 sm:w-20 sm:h-32 rounded-xl border-2 shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center relative ${COLOR_STYLES[gameState.topCard.color]}`}>
-                <div className="w-12 h-20 sm:w-16 sm:h-28 border border-white/20 rounded-lg flex items-center justify-center bg-black/10">
-                  <span className="text-2xl sm:text-3xl font-extrabold pb-0.5 drop-shadow-md">
+              <div className={`w-16 h-24 sm:w-20 sm:h-32 lg:w-16 lg:h-24 xl:w-20 xl:h-32 rounded-xl border-2 shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center relative ${COLOR_STYLES[gameState.topCard.color]}`}>
+                <div className="w-12 h-20 sm:w-16 sm:h-28 lg:w-12 lg:h-20 xl:w-16 xl:h-28 border border-white/20 rounded-lg flex items-center justify-center bg-black/10">
+                  <span className="text-2xl sm:text-3xl lg:text-2xl xl:text-3xl font-extrabold pb-0.5 drop-shadow-md">
                     {gameState.topCard.value === 'WildDraw4' ? '+4' :
                      gameState.topCard.value === 'Wild' ? 'WILD' :
                      gameState.topCard.value === 'Reverse' ? 'REV' :
@@ -679,13 +679,13 @@ export default function Game() {
             </div>
           </div>
 
-          <div className="absolute left-1/2 bottom-2 sm:bottom-4 lg:bottom-6 -translate-x-1/2 w-[98%] sm:w-[92%] xl:w-[90%] z-20">
+          <div className="absolute left-1/2 bottom-2 sm:bottom-3 lg:bottom-2 xl:bottom-4 -translate-x-1/2 w-[98%] sm:w-[92%] lg:w-[88%] xl:w-[90%] z-20">
             <div className="flex items-end justify-start sm:justify-center flex-nowrap overflow-x-auto pb-4 pt-12 px-4 scrollbar-hide">
               {gameState.myPlayer.hand.map((card, idx) => {
                 const playable = isPlayableCard(card, gameState, isMyTurn);
                 const isLastDrawn = gameState.lastDrawnCardId === card.id;
                 // Add overlapping effect by negative margin, except for the first card
-                const overlapClass = idx === 0 ? '' : '-ml-4 sm:-ml-6 md:-ml-8';
+                const overlapClass = idx === 0 ? '' : '-ml-4 sm:-ml-6 lg:-ml-4 xl:-ml-6';
 
                 const displayValue = card.value === 'WildDraw4' ? '+4' :
                                      card.value === 'Wild' ? 'WILD' :
@@ -699,17 +699,17 @@ export default function Game() {
                     key={card.id}
                     onClick={() => handlePlayCard(card)}
                     whileHover={playable ? { y: -20, scale: 1.05 } : undefined}
-                    className={`shrink-0 w-14 h-20 sm:w-16 sm:h-24 md:w-20 md:h-32 rounded-lg border-2 flex items-center justify-center transition-all duration-200 shadow-xl ${overlapClass} ${
+                    className={`shrink-0 w-14 h-20 sm:w-16 sm:h-24 lg:w-14 lg:h-20 xl:w-16 xl:h-24 rounded-lg border-2 flex items-center justify-center transition-all duration-200 shadow-xl ${overlapClass} ${
                       playable
                         ? 'border-white/50 cursor-pointer z-10 hover:z-40 hover:shadow-[0_0_20px_rgba(255,255,255,0.3)]'
-                        : 'border-slate-900/60 grayscale-[0.5] brightness-75 cursor-not-allowed z-0 hover:z-20 md:hover:-translate-y-2'
+                        : 'border-slate-900/60 grayscale-[0.5] brightness-75 cursor-not-allowed z-0 hover:z-20 lg:hover:-translate-y-1 xl:hover:-translate-y-2'
                     } ${isLastDrawn ? 'ring-2 ring-amber-400 ring-offset-1 ring-offset-slate-900' : ''} ${COLOR_STYLES[card.color]}`}
                   >
-                    <div className="w-10 h-16 sm:w-12 sm:h-20 md:w-16 md:h-28 border border-white/20 rounded flex items-center justify-center bg-black/10 relative">
+                    <div className="w-10 h-16 sm:w-12 sm:h-20 lg:w-10 lg:h-16 xl:w-12 xl:h-20 border border-white/20 rounded flex items-center justify-center bg-black/10 relative">
                       {/* Dark overlay for disabled cards so they don't look transparent */}
                       {!playable && <div className="absolute inset-0 bg-black/20 rounded z-0 pointer-events-none"></div>}
                       <span className={`font-extrabold pb-0.5 drop-shadow-md z-10 relative ${
-                        displayValue.length > 2 ? 'text-sm sm:text-base md:text-lg' : 'text-xl sm:text-2xl md:text-3xl'
+                          displayValue.length > 2 ? 'text-sm sm:text-base lg:text-sm xl:text-base' : 'text-xl sm:text-2xl lg:text-xl xl:text-2xl'
                       }`}>{displayValue}</span>
                     </div>
                   </motion.button>
