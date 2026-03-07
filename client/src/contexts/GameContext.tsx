@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+﻿import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type {
   ClientGameState,
@@ -9,6 +9,7 @@ import type {
   ServerToClientEvents,
 } from '@uno-web/shared';
 import { ERROR_CODES } from '@uno-web/shared';
+import { resolveServerUrl } from '../config/serverUrl';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -146,19 +147,31 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [disconnectDeadlines]);
 
   useEffect(() => {
-    const configuredServerUrl = import.meta.env.VITE_SERVER_URL?.trim();
-    const serverUrl = configuredServerUrl && configuredServerUrl.toLowerCase() !== 'auto'
-      ? configuredServerUrl
-      : typeof window !== 'undefined'
-        ? `${window.location.protocol}//${window.location.hostname}:3001`
-        : 'http://localhost:3001';
+    let newSocket: GameSocket | null = null;
 
-    const newSocket = io(serverUrl, {
-      autoConnect: true,
-    }) as GameSocket;
+    try {
+      const serverUrl = resolveServerUrl(
+        import.meta.env.VITE_SERVER_URL,
+        typeof window !== 'undefined' ? window.location : undefined
+      );
+
+      newSocket = io(serverUrl, {
+        autoConnect: true,
+      }) as GameSocket;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to resolve server URL.';
+      setSocket(null);
+      setIsConnected(false);
+      setGlobalError({
+        code: ERROR_CODES.INTERNAL_ERROR,
+        message,
+      });
+      pushSystemMessage(message);
+      return;
+    }
 
     const restoreSession = (stored: StoredSession) => {
-      newSocket.emit('resumeSession', { sessionId: stored.sessionId }, (response) => {
+      newSocket?.emit('resumeSession', { sessionId: stored.sessionId }, response => {
         if (!response.success || !response.playerId || !response.sessionId) {
           clearStoredSession();
           setPlayerId(null);
@@ -208,7 +221,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       pushSystemMessage('Connection lost. Trying to reconnect...');
     });
 
-    newSocket.on('roomUpdate', (updatedRoom) => {
+    newSocket.on('roomUpdate', updatedRoom => {
       setGlobalError(null);
       setRoom(updatedRoom);
       setDisconnectDeadlines(prev => {
@@ -236,16 +249,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setDisconnectDeadlines({});
     });
 
-    newSocket.on('gameStateUpdate', (state) => {
+    newSocket.on('gameStateUpdate', state => {
       setGlobalError(null);
       setGameState(state as ClientGameState);
     });
 
-    newSocket.on('playerJoined', (player) => {
+    newSocket.on('playerJoined', player => {
       pushSystemMessage(`${player.name} joined the room.`);
     });
 
-    newSocket.on('playerLeft', (leftPlayerId) => {
+    newSocket.on('playerLeft', leftPlayerId => {
       removeDisconnectEntry(leftPlayerId);
       pushSystemMessage('A player left the room.');
     });
@@ -261,12 +274,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       pushSystemMessage(`${player.name} disconnected. Waiting up to ${Math.ceil(player.graceMs / 1000)}s.`);
     });
 
-    newSocket.on('playerReconnected', (player) => {
+    newSocket.on('playerReconnected', player => {
       removeDisconnectEntry(player.playerId);
       pushSystemMessage(`${player.name} reconnected.`);
     });
 
-    newSocket.on('error', (error) => {
+    newSocket.on('error', error => {
       setGlobalError(error);
       pushSystemMessage(error.message ?? 'Unexpected socket error');
     });
@@ -277,15 +290,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (messageTimeoutRef.current) {
         window.clearTimeout(messageTimeoutRef.current);
       }
-      newSocket.close();
+      newSocket?.close();
     };
   }, [pushSystemMessage, removeDisconnectEntry]);
 
   const createRoom = useCallback(async (playerName: string): Promise<RoomInfo | null> => {
     if (!socket) return null;
     setGlobalError(null);
-    return new Promise((resolve) => {
-      socket.emit('createRoom', { playerName }, (response) => {
+    return new Promise(resolve => {
+      socket.emit('createRoom', { playerName }, response => {
         persistSession({ playerId: response.playerId, sessionId: response.sessionId });
         setPlayerId(response.playerId);
         setRoom(response.room);
@@ -299,8 +312,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const joinRoom = useCallback(async (roomId: string, playerName: string) => {
     if (!socket) return { success: false, error: 'Not connected' };
     setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
-      socket.emit('joinRoom', { roomId, playerName }, (response) => {
+    return new Promise<{ success: boolean; error?: string }>(resolve => {
+      socket.emit('joinRoom', { roomId, playerName }, response => {
         if (response.success && response.room && response.playerId && response.sessionId) {
           persistSession({ playerId: response.playerId, sessionId: response.sessionId });
           setPlayerId(response.playerId);
@@ -334,7 +347,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const startGame = useCallback(async () => {
     if (!socket) return { success: false, error: 'Not connected' };
     setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    return new Promise<{ success: boolean; error?: string }>(resolve => {
       socket.emit('startGame', {}, resolve);
     });
   }, [socket]);
@@ -342,7 +355,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const playAgain = useCallback(async () => {
     if (!socket) return { success: false, error: 'Not connected' };
     setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    return new Promise<{ success: boolean; error?: string }>(resolve => {
       socket.emit('playAgain', {}, resolve);
     });
   }, [socket]);
@@ -350,7 +363,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const returnToLobby = useCallback(async () => {
     if (!socket) return { success: false, error: 'Not connected' };
     setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    return new Promise<{ success: boolean; error?: string }>(resolve => {
       socket.emit('returnToLobby', {}, resolve);
     });
   }, [socket]);
@@ -358,7 +371,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const playCard = useCallback(async (cardId: string, chosenColor?: ClientGameState['activeColor']) => {
     if (!socket) return { success: false, error: 'Not connected' };
     setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    return new Promise<{ success: boolean; error?: string }>(resolve => {
       socket.emit('playCard', { cardId, chosenColor: chosenColor ?? undefined }, resolve);
     });
   }, [socket]);
@@ -366,7 +379,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const drawCard = useCallback(async () => {
     if (!socket) return { success: false, error: 'Not connected' };
     setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    return new Promise<{ success: boolean; error?: string }>(resolve => {
       socket.emit('drawCard', {}, resolve);
     });
   }, [socket]);
@@ -374,7 +387,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const endTurn = useCallback(async () => {
     if (!socket) return { success: false, error: 'Not connected' };
     setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    return new Promise<{ success: boolean; error?: string }>(resolve => {
       socket.emit('endTurn', {}, resolve);
     });
   }, [socket]);
@@ -382,7 +395,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const chooseDirection = useCallback(async (direction: ClientGameState['direction']) => {
     if (!socket) return { success: false, error: 'Not connected' };
     setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    return new Promise<{ success: boolean; error?: string }>(resolve => {
       socket.emit('chooseDirection', { direction }, resolve);
     });
   }, [socket]);
@@ -396,7 +409,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const challenge = useCallback(async (challengeValue: boolean) => {
     if (!socket) return { success: false, error: 'Not connected' };
     setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>((resolve) => {
+    return new Promise<{ success: boolean; error?: string }>(resolve => {
       socket.emit('challenge', { challenge: challengeValue }, resolve);
     });
   }, [socket]);
@@ -440,4 +453,3 @@ export function useGame() {
   }
   return context;
 }
-
