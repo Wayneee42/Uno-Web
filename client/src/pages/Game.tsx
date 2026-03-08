@@ -32,12 +32,12 @@ type DealCard = {
 };
 
 const POINTS: Record<CardPoint, { x: string; y: string }> = {
-  draw: { x: '50%', y: '45%' },     // Draw pile in center-ish
-  discard: { x: '50%', y: '45%' },  // Discard pile aligned
-  bottom: { x: '50%', y: '85%' },   // Bottom hand area
-  left: { x: '12%', y: '45%' },     // Left player
-  top: { x: '50%', y: '15%' },      // Top player
-  right: { x: '88%', y: '45%' },    // Right player
+  draw: { x: '45%', y: '50%' },     
+  discard: { x: '55%', y: '50%' },  
+  bottom: { x: '50%', y: '85%' },   
+  left: { x: '12%', y: '48%' },     
+  top: { x: '50%', y: '15%' },      
+  right: { x: '88%', y: '48%' },    
 };
 
 function isPlayableCard(
@@ -637,9 +637,9 @@ export default function Game() {
             />
           ))}
 
-          <div className="absolute left-1/2 top-[41%] sm:top-[37%] lg:top-[33%] xl:top-[36%] -translate-x-1/2 -translate-y-1/2 flex items-start gap-10 sm:gap-16 lg:gap-[4.5rem] xl:gap-[5.5rem] z-0 scale-90 sm:scale-90 lg:scale-[0.82] xl:scale-[0.9]">
-            <div className="flex flex-col items-center gap-3">
-              <div className="text-[11px] uppercase tracking-widest font-black text-white/50 drop-shadow">Draw</div>
+          <div className="absolute left-1/2 top-1/2 lg:top-[48%] -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-6 sm:gap-10 lg:gap-14 z-0 scale-100 sm:scale-110 lg:scale-[1.15]">
+            <div className="flex flex-col items-center gap-4">
+              <div className="text-xs sm:text-sm uppercase tracking-widest font-black text-white/60 drop-shadow-md">Draw</div>
               <button
                 onClick={handleDraw}
                 disabled={!isMyTurn || isChallengePending || needsDirection || isGameFinished}
@@ -668,8 +668,8 @@ export default function Game() {
               )}
             </div>
 
-            <div className="flex flex-col items-center gap-3 pt-[2px]">
-              <div className="text-[11px] uppercase tracking-widest font-black text-white/50 drop-shadow">Discard</div>
+            <div className="flex flex-col items-center gap-4">
+              <div className="text-xs sm:text-sm uppercase tracking-widest font-black text-white/60 drop-shadow-md">Discard</div>
               <div className={`w-14 h-20 sm:w-16 sm:h-24 lg:w-14 lg:h-20 xl:w-16 xl:h-24 rounded-xl border-2 shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center relative ${COLOR_STYLES[gameState.topCard.color]}`}>
                 <div className="w-10 h-16 sm:w-12 sm:h-20 lg:w-10 lg:h-16 xl:w-12 xl:h-20 border border-white/20 rounded-lg flex items-center justify-center bg-black/10">
                   <span className="text-xl sm:text-2xl lg:text-xl xl:text-2xl font-extrabold pb-0.5 drop-shadow-md">
@@ -691,7 +691,8 @@ export default function Game() {
                 const playable = isPlayableCard(card, gameState, isMyTurn);
                 const isLastDrawn = gameState.lastDrawnCardId === card.id;
                 // Add overlapping effect by negative margin, except for the first card
-                const overlapClass = idx === 0 ? '' : '-ml-4 sm:-ml-6 lg:-ml-4 xl:-ml-6';
+                const overlapCount = gameState.myPlayer.hand.length;
+                const overlapClass = idx === 0 ? '' : overlapCount > 7 ? '-ml-5 sm:-ml-7' : '-ml-2 sm:-ml-3';
 
                 const displayValue = card.value === 'WildDraw4' ? '+4' :
                                      card.value === 'Wild' ? 'WILD' :
