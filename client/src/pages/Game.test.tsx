@@ -148,6 +148,9 @@ describe('Game', () => {
     });
 
     render(<Game />);
+    expect(screen.getByText('UNO Room')).toBeInTheDocument();
+    expect(screen.getByText('Playing as')).toBeInTheDocument();
+    expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.getByText('Match Log')).toBeInTheDocument();
     expect(screen.getAllByText('Game started with 3 players.').length).toBeGreaterThan(0);
   });
@@ -200,7 +203,7 @@ describe('Game', () => {
     await user.click(screen.getByRole('button', { name: 'Leave Game' }));
 
     expect(screen.getByText('Leave Game?')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Leave Game', exact: true }));
+    await user.click(screen.getAllByRole('button', { name: 'Leave Game' })[1]);
     expect(leaveRoom).toHaveBeenCalledTimes(1);
   });
 });

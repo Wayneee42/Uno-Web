@@ -337,7 +337,13 @@ export default function Game() {
     <div className="h-screen overflow-hidden flex flex-col p-3 sm:p-4 text-white relative">
       <div className="w-full max-w-[1400px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 mb-4 z-10 glass-panel p-4 rounded-2xl">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">UNO Room</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">UNO Room</h2>
+            <div className="px-3 py-1.5 rounded-xl bg-black/35 border border-white/10 shadow-inner text-xs sm:text-sm font-semibold text-slate-200">
+              <span className="text-slate-400 mr-2">Playing as</span>
+              <span className="text-white">{gameState.myPlayer.name}</span>
+            </div>
+          </div>
           <div className="text-slate-300 text-xs sm:text-sm mt-2 flex flex-wrap items-center gap-2">
             <span className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 shadow-inner font-medium">
               {turnStatusLabel}
@@ -631,13 +637,13 @@ export default function Game() {
             />
           ))}
 
-          <div className="absolute left-1/2 top-[42%] sm:top-[38%] lg:top-[35%] xl:top-[38%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-10 sm:gap-16 lg:gap-20 xl:gap-24 z-0 scale-90 sm:scale-90 lg:scale-[0.82] xl:scale-[0.9]">
+          <div className="absolute left-1/2 top-[41%] sm:top-[37%] lg:top-[33%] xl:top-[36%] -translate-x-1/2 -translate-y-1/2 flex items-start gap-10 sm:gap-16 lg:gap-[4.5rem] xl:gap-[5.5rem] z-0 scale-90 sm:scale-90 lg:scale-[0.82] xl:scale-[0.9]">
             <div className="flex flex-col items-center gap-3">
               <div className="text-[11px] uppercase tracking-widest font-black text-white/50 drop-shadow">Draw</div>
               <button
                 onClick={handleDraw}
                 disabled={!isMyTurn || isChallengePending || needsDirection || isGameFinished}
-                className={`group relative w-16 h-24 sm:w-20 sm:h-32 lg:w-16 lg:h-24 xl:w-20 xl:h-32 rounded-xl border-2 border-white/20 bg-gradient-to-br from-slate-800 to-black shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center transition-all duration-300 ${
+                className={`group relative w-14 h-20 sm:w-16 sm:h-24 lg:w-14 lg:h-20 xl:w-16 xl:h-24 rounded-xl border-2 border-white/20 bg-gradient-to-br from-slate-800 to-black shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center transition-all duration-300 ${
                   isMyTurn ? 'hover:-translate-y-2 hover:border-white/50 hover:shadow-[0_15px_40px_rgba(255,255,255,0.15)] cursor-pointer' : 'opacity-80'
                 }`}
               >
@@ -645,7 +651,7 @@ export default function Game() {
                 <div className="absolute inset-0 rounded-xl border-2 border-white/10 bg-slate-800 translate-x-1 -translate-y-1 -z-10 opacity-70"></div>
                 <div className="absolute inset-0 rounded-xl border-2 border-white/10 bg-slate-800 translate-x-1.5 -translate-y-1.5 -z-20 opacity-40"></div>
 
-                <div className="w-12 h-20 sm:w-16 sm:h-28 lg:w-12 lg:h-20 xl:w-16 xl:h-28 border border-white/10 rounded-lg flex items-center justify-center bg-black/40">
+                <div className="w-10 h-16 sm:w-12 sm:h-20 lg:w-10 lg:h-16 xl:w-12 xl:h-20 border border-white/10 rounded-lg flex items-center justify-center bg-black/40">
                   <span className={`text-xl sm:text-2xl lg:text-xl xl:text-2xl font-black italic drop-shadow-md transition-colors ${
                     isMyTurn ? 'text-emerald-400 group-hover:text-emerald-300' : 'text-slate-500'
                   }`}>UNO</span>
@@ -655,18 +661,18 @@ export default function Game() {
                 <button
                   onClick={handleEndTurn}
                   disabled={isGameFinished}
-                  className="absolute -bottom-10 sm:-bottom-12 lg:-bottom-14 px-4 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-white/20 text-[10px] font-bold uppercase tracking-widest text-white transition-colors shadow-lg z-20 hover:scale-105 whitespace-nowrap"
+                  className="mt-1 px-4 py-1.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-white/20 text-[10px] font-bold uppercase tracking-widest text-white transition-all shadow-lg z-20 hover:scale-105 whitespace-nowrap"
                 >
                   End Turn
                 </button>
               )}
             </div>
 
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex flex-col items-center gap-3 pt-[2px]">
               <div className="text-[11px] uppercase tracking-widest font-black text-white/50 drop-shadow">Discard</div>
-              <div className={`w-16 h-24 sm:w-20 sm:h-32 lg:w-16 lg:h-24 xl:w-20 xl:h-32 rounded-xl border-2 shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center relative ${COLOR_STYLES[gameState.topCard.color]}`}>
-                <div className="w-12 h-20 sm:w-16 sm:h-28 lg:w-12 lg:h-20 xl:w-16 xl:h-28 border border-white/20 rounded-lg flex items-center justify-center bg-black/10">
-                  <span className="text-2xl sm:text-3xl lg:text-2xl xl:text-3xl font-extrabold pb-0.5 drop-shadow-md">
+              <div className={`w-14 h-20 sm:w-16 sm:h-24 lg:w-14 lg:h-20 xl:w-16 xl:h-24 rounded-xl border-2 shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center justify-center relative ${COLOR_STYLES[gameState.topCard.color]}`}>
+                <div className="w-10 h-16 sm:w-12 sm:h-20 lg:w-10 lg:h-16 xl:w-12 xl:h-20 border border-white/20 rounded-lg flex items-center justify-center bg-black/10">
+                  <span className="text-xl sm:text-2xl lg:text-xl xl:text-2xl font-extrabold pb-0.5 drop-shadow-md">
                     {gameState.topCard.value === 'WildDraw4' ? '+4' :
                      gameState.topCard.value === 'Wild' ? 'WILD' :
                      gameState.topCard.value === 'Reverse' ? 'REV' :
@@ -823,7 +829,3 @@ export default function Game() {
     </div>
   );
 }
-
-
-
-
