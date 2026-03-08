@@ -32,12 +32,12 @@ type DealCard = {
 };
 
 const POINTS: Record<CardPoint, { x: string; y: string }> = {
-  draw: { x: '45%', y: '50%' },     
-  discard: { x: '55%', y: '50%' },  
+  draw: { x: '45%', y: '46%' },     
+  discard: { x: '55%', y: '46%' },  
   bottom: { x: '50%', y: '85%' },   
-  left: { x: '12%', y: '48%' },     
+  left: { x: '12%', y: '46%' },     
   top: { x: '50%', y: '15%' },      
-  right: { x: '88%', y: '48%' },    
+  right: { x: '88%', y: '46%' },    
 };
 
 function isPlayableCard(
@@ -546,7 +546,7 @@ export default function Game() {
           <div className="absolute inset-0 bg-blue-500/10 blur-[100px] rounded-[100px] pointer-events-none"></div>
 
           <div className="relative w-full max-w-[1080px] h-full lg:max-h-[80vh] bg-gradient-to-br from-white/5 to-black/20 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl overflow-hidden ring-1 ring-white/5">
-            <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute inset-0 pointer-events-none z-50">
             <AnimatePresence>
               {dealCards.map((card) => (
                 <motion.div
@@ -637,7 +637,7 @@ export default function Game() {
             />
           ))}
 
-          <div className="absolute left-1/2 top-1/2 lg:top-[48%] -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-6 sm:gap-10 lg:gap-14 z-0 scale-100 sm:scale-110 lg:scale-[1.15]">
+          <div className="absolute left-1/2 top-[46%] lg:top-[45%] -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-6 sm:gap-10 lg:gap-14 z-30 scale-100 sm:scale-110 lg:scale-[1.15]">
             <div className="flex flex-col items-center gap-4">
               <div className="text-xs sm:text-sm uppercase tracking-widest font-black text-white/60 drop-shadow-md">Draw</div>
               <button
