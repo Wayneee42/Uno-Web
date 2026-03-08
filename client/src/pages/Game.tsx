@@ -439,86 +439,6 @@ export default function Game() {
           </motion.div>
         )}
       </AnimatePresence>
-      {!isConnected && (
-        <div className="w-full max-w-6xl mx-auto mb-3 bg-amber-500/20 text-amber-100 border border-amber-500/30 rounded-xl px-4 py-3 text-sm shrink-0 flex items-center gap-3 shadow-lg z-10">
-          <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></div>
-          Reconnecting to server...
-        </div>
-      )}
-
-      {reconnectWaitHint && (
-        <div className="w-full max-w-6xl mx-auto mb-3 bg-amber-500/20 text-amber-100 border border-amber-500/30 rounded-xl px-4 py-3 text-sm shrink-0 shadow-lg z-10">
-          <span className="font-bold">Waiting for reconnect:</span> {reconnectWaitHint}
-        </div>
-      )}
-
-      {systemMessage && (
-        <div className="w-full max-w-6xl mx-auto mb-3 bg-blue-500/20 text-blue-100 border border-blue-500/30 rounded-xl px-4 py-3 text-sm shrink-0 shadow-lg z-10 flex items-center gap-2">
-          <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          {systemMessage}
-        </div>
-      )}
-
-      {globalError && (
-        <div className="w-full max-w-6xl mx-auto mb-3 bg-red-500/20 text-red-100 border border-red-500/30 rounded-xl px-4 py-3 text-sm shrink-0 shadow-lg z-10 flex items-center gap-2">
-          <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          {globalError.message}
-        </div>
-      )}
-
-      {error && (
-        <div className="w-full max-w-6xl mx-auto mb-3 bg-red-500/20 text-red-100 border border-red-500/30 rounded-xl px-4 py-3 text-sm shrink-0 shadow-lg z-10 flex items-center gap-2">
-          <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-          {error}
-        </div>
-      )}
-
-      {isLastCard && (
-        <div className="w-full max-w-6xl mx-auto mb-3 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-xl px-4 py-3 text-center text-sm font-extrabold shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-pulse z-10">
-          WARNING: ONE CARD LEFT
-        </div>
-      )}
-
-      {isGameFinished && gameState.isDraw && (
-        <div className="w-full max-w-6xl mx-auto mb-3 bg-slate-700/60 text-white border border-slate-500/50 rounded-xl px-4 py-4 text-center text-lg font-bold shrink-0 shadow-xl z-10 backdrop-blur-md">
-          Game ended in a draw.
-        </div>
-      )}
-
-      {isGameFinished && !gameState.isDraw && winnerName && (
-        <div className="w-full max-w-6xl mx-auto mb-3 bg-gradient-to-r from-emerald-600/40 to-emerald-400/40 text-emerald-100 border border-emerald-400/50 rounded-xl px-4 py-4 text-center text-xl font-black shrink-0 shadow-[0_0_30px_rgba(16,185,129,0.3)] z-10 backdrop-blur-md">
-          {winnerName} WINS!
-        </div>
-      )}
-
-      {needsDirection && (
-        <div className="w-full max-w-[1400px] mx-auto mb-3 glass-panel rounded-xl px-6 py-4 text-center shrink-0 z-10">
-          {isMyTurn ? (
-            <div className="flex flex-col items-center gap-4">
-              <div className="font-bold text-lg text-white">Choose play direction</div>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => handleChooseDirection(1)}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold shadow-lg hover:scale-105 transition-transform border border-blue-400/50"
-                >
-                  Clockwise
-                </button>
-                <button
-                  onClick={() => handleChooseDirection(-1)}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold shadow-lg hover:scale-105 transition-transform border border-emerald-400/50"
-                >
-                  Counterclockwise
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="font-bold text-slate-300 flex items-center justify-center gap-3">
-              <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
-              Dealer is choosing the play direction...
-            </div>
-          )}
-        </div>
-      )}
 
       <div className="w-full max-w-[1400px] mx-auto flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
         {/* Left side: Match Log (desktop) */}
@@ -542,6 +462,89 @@ export default function Game() {
 
         {/* Main Board */}
         <div className="flex-1 py-1 sm:py-3 flex items-center justify-center relative min-w-0">
+          <div className="absolute inset-x-0 top-2 sm:top-3 lg:top-4 z-30 flex flex-col items-center gap-3 px-2 sm:px-4 pointer-events-none">
+            {!isConnected && (
+              <div className="w-full max-w-3xl bg-amber-500/20 text-amber-100 border border-amber-500/30 rounded-2xl px-4 py-3 text-sm flex items-center gap-3 shadow-lg backdrop-blur-md pointer-events-auto">
+                <div className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></div>
+                Reconnecting to server...
+              </div>
+            )}
+
+            {reconnectWaitHint && (
+              <div className="w-full max-w-3xl bg-amber-500/20 text-amber-100 border border-amber-500/30 rounded-2xl px-4 py-3 text-sm shadow-lg backdrop-blur-md pointer-events-auto">
+                <span className="font-bold">Waiting for reconnect:</span> {reconnectWaitHint}
+              </div>
+            )}
+
+            {systemMessage && (
+              <div className="w-full max-w-3xl bg-blue-500/20 text-blue-100 border border-blue-500/30 rounded-2xl px-4 py-3 text-sm shadow-lg backdrop-blur-md flex items-center gap-2 pointer-events-auto">
+                <svg className="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>{systemMessage}</span>
+              </div>
+            )}
+
+            {globalError && (
+              <div className="w-full max-w-3xl bg-red-500/20 text-red-100 border border-red-500/30 rounded-2xl px-4 py-3 text-sm shadow-lg backdrop-blur-md flex items-center gap-2 pointer-events-auto">
+                <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>{globalError.message}</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="w-full max-w-3xl bg-red-500/20 text-red-100 border border-red-500/30 rounded-2xl px-4 py-3 text-sm shadow-lg backdrop-blur-md flex items-center gap-2 pointer-events-auto">
+                <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span>{error}</span>
+              </div>
+            )}
+
+            {isLastCard && (
+              <div className="w-full max-w-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-2xl px-4 py-3 text-center text-sm font-extrabold shadow-[0_0_15px_rgba(245,158,11,0.2)] animate-pulse backdrop-blur-md pointer-events-auto">
+                WARNING: ONE CARD LEFT
+              </div>
+            )}
+
+            {isGameFinished && gameState.isDraw && (
+              <div className="w-full max-w-xl bg-slate-700/60 text-white border border-slate-500/50 rounded-2xl px-4 py-4 text-center text-lg font-bold shadow-xl backdrop-blur-md pointer-events-auto">
+                Game ended in a draw.
+              </div>
+            )}
+
+            {isGameFinished && !gameState.isDraw && winnerName && (
+              <div className="w-full max-w-xl bg-gradient-to-r from-emerald-600/40 to-emerald-400/40 text-emerald-100 border border-emerald-400/50 rounded-2xl px-4 py-4 text-center text-xl font-black shadow-[0_0_30px_rgba(16,185,129,0.3)] backdrop-blur-md pointer-events-auto">
+                {winnerName} WINS!
+              </div>
+            )}
+
+            {needsDirection && (
+              <div className="w-full max-w-4xl glass-panel rounded-2xl border border-white/10 px-5 py-4 sm:px-6 sm:py-5 text-center shadow-2xl pointer-events-auto">
+                {isMyTurn ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="font-bold text-lg text-white">Choose play direction</div>
+                    <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                      <button
+                        onClick={() => handleChooseDirection(1)}
+                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-bold shadow-lg hover:scale-105 transition-transform border border-blue-400/50"
+                      >
+                        Clockwise
+                      </button>
+                      <button
+                        onClick={() => handleChooseDirection(-1)}
+                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-bold shadow-lg hover:scale-105 transition-transform border border-emerald-400/50"
+                      >
+                        Counterclockwise
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="font-bold text-slate-300 flex items-center justify-center gap-3">
+                    <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                    Dealer is choosing the play direction...
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Glow behind the board */}
           <div className="absolute inset-0 bg-blue-500/10 blur-[100px] rounded-[100px] pointer-events-none"></div>
 
