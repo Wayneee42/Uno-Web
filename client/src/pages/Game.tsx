@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Card, CardColor, ClientGameState } from '@uno-web/shared';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useGame } from '../contexts/GameContext';
@@ -406,6 +406,9 @@ export default function Game() {
       <AnimatePresence>
         {showLeaveConfirm && (
           <motion.div
+            role={'dialog'}
+            aria-modal={'true'}
+            aria-label={'Leave game confirmation'}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { RoomManager } from './RoomManager.js';
 
 describe('RoomManager', () => {
@@ -43,6 +43,32 @@ describe('RoomManager', () => {
     manager.setReady(join2.playerId!, true);
 
     expect(manager.canStartGame(created.playerId)).toBe(true);
+  });
+
+  it('limits a profile to one seat and ignores disconnects from a replaced socket', () => {
+    const manager = new RoomManager();
+    const created = manager.createRoom('Alice', 'socket-old', 'profile-a');
+    expect(created.success).toBe(true);
+
+    const duplicate = manager.createRoom('Alice again', 'socket-other', 'profile-a');
+    expect(duplicate).toMatchObject({ success: false });
+
+    const restored = manager.resumeSession(created.sessionId!, 'socket-new', 'profile-a');
+    expect(restored).toMatchObject({
+      success: true,
+      playerId: created.playerId,
+      replacedSocketId: 'socket-old',
+    });
+    expect(manager.markDisconnected('socket-old')).toBeNull();
+    expect(manager.getPlayerById(created.playerId!)?.connected).toBe(true);
+
+    const joined = manager.joinRoom(created.room.roomId, 'Bob', 'socket-third', 'profile-b');
+    const crossSeat = manager.resumeSession(created.sessionId!, 'socket-third', 'profile-a');
+    expect(crossSeat).toMatchObject({ success: false });
+    expect(manager.getPlayerIdBySocketId('socket-third')).toBe(joined.playerId);
+
+    const wrongProfile = manager.resumeSession(created.sessionId!, 'socket-fourth', 'profile-b');
+    expect(wrongProfile).toMatchObject({ success: false });
   });
 });
 

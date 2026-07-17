@@ -1,4 +1,4 @@
-﻿import { AddressInfo } from 'net';
+import { AddressInfo } from 'net';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { io as createClient } from 'socket.io-client';
 import type {
@@ -6,11 +6,27 @@ import type {
   JoinRoomResponse,
   PlayerDisconnectedPayload,
   RoomInfo,
-  SessionResponse,
+  CreateRoomResponse,
 } from '@uno-web/shared';
 import { ERROR_CODES } from '@uno-web/shared';
 import { gameManager } from '../game/GameManager.js';
 import { createHttpServer } from '../server.js';
+
+vi.mock('../history/index.js', async () => {
+  const { HistoryService } = await import('../history/HistoryService.js');
+  const { InMemoryHistoryRepository } = await import(
+    '../history/InMemoryHistoryRepository.js'
+  );
+  return {
+    historyService: new HistoryService(new InMemoryHistoryRepository()),
+  };
+});
+
+type SessionResponse = CreateRoomResponse & {
+  room: RoomInfo;
+  playerId: string;
+  sessionId: string;
+};
 
 const waitForEvent = <T>(socket: ReturnType<typeof createClient>, event: string, timeoutMs = 5000) =>
   new Promise<T>((resolve, reject) => {
@@ -348,6 +364,102 @@ describe('socket handlers', () => {
     }
   }, 20000);
 
+  it('archives an interrupted match for authenticated anonymous profiles', async () => {
+    const host = createClient(url, { transports: ['websocket'] });
+    const guest = createClient(url, { transports: ['websocket'] });
+
+    try {
+      await Promise.all([connectSocket(host), connectSocket(guest)]);
+      const hostProfile = await emitAck<{
+        success: boolean;
+        profile?: { id: string };
+      }>(host, 'initializeProfile');
+      await emitAck(guest, 'initializeProfile');
+      expect(hostProfile.success).toBe(true);
+
+      const created = await emitAck<SessionResponse>(host, 'createRoom', { playerName: 'Host' });
+      await emitAck<JoinRoomResponse>(guest, 'joinRoom', {
+        roomId: created.room.roomId,
+        playerName: 'Guest',
+      });
+
+      host.emit('ready', { ready: true });
+      guest.emit('ready', { ready: true });
+      await new Promise<void>(resolve => {
+        const handler = (room: RoomInfo) => {
+          if (!room.canStart) return;
+          host.off('roomUpdate', handler);
+          resolve();
+        };
+        host.on('roomUpdate', handler);
+      });
+      expect((await emitAck<{ success: boolean }>(host, 'startGame')).success).toBe(true);
+      expect((await emitAck<{ success: boolean }>(host, 'returnToLobby')).success).toBe(true);
+
+      const history = await emitAck<{
+        success: boolean;
+        page?: { matches: Array<{ status: string; participants: Array<{ isCurrentProfile: boolean; voluntarilyLeft: boolean }> }> };
+      }>(host, 'getMatchHistory');
+      expect(history.success).toBe(true);
+      expect(history.page?.matches).toHaveLength(1);
+      expect(history.page?.matches[0].status).toBe('interrupted');
+      expect(
+        history.page?.matches[0].participants.find(player => player.isCurrentProfile)?.voluntarilyLeft
+      ).toBe(true);
+
+      const stats = await emitAck<{
+        success: boolean;
+        stats?: { completedGames: number; voluntaryExits: number };
+      }>(host, 'getProfileStats');
+      expect(stats.stats).toMatchObject({ completedGames: 0, voluntaryExits: 1 });
+    } finally {
+      host.disconnect();
+      guest.disconnect();
+    }
+  }, 20000);
+
+  it('revokes another online browser after recovery code rotation', async () => {
+    const owner = createClient(url, { transports: ['websocket'] });
+    const observer = createClient(url, { transports: ['websocket'] });
+
+    try {
+      await Promise.all([connectSocket(owner), connectSocket(observer)]);
+      const created = await emitAck<{
+        success: boolean;
+        recoveryCode?: string;
+        profile?: { id: string };
+      }>(owner, 'initializeProfile');
+      expect(created.recoveryCode).toBeTruthy();
+
+      const restored = await emitAck<{ success: boolean; profile?: { id: string } }>(
+        observer,
+        'initializeProfile',
+        { recoveryCode: created.recoveryCode }
+      );
+      expect(restored.profile?.id).toBe(created.profile?.id);
+
+      const revoked = waitForEvent<void>(observer, 'profileCredentialsRevoked');
+      const rotated = await emitAck<{ success: boolean; recoveryCode?: string }>(
+        owner,
+        'rotateRecoveryCode'
+      );
+      expect(rotated.success).toBe(true);
+      await revoked;
+
+      const stats = await emitAck<{ success: boolean; error?: string }>(
+        observer,
+        'getProfileStats'
+      );
+      expect(stats).toMatchObject({
+        success: false,
+        error: 'Persistent player profile is unavailable',
+      });
+    } finally {
+      owner.disconnect();
+      observer.disconnect();
+    }
+  }, 20000);
+
   it('emits a normalized internal error when state broadcasting throws unexpectedly', async () => {
     const host = createClient(url, { transports: ['websocket'] });
     const client2 = createClient(url, { transports: ['websocket'] });
@@ -384,6 +496,7 @@ describe('socket handlers', () => {
 
       expect(startResult.success).toBe(false);
       expect(startResult.error).toBe('Failed to synchronize game state');
+      expect(gameManager.getGame(created.room.roomId)).toBeUndefined();
 
       const errorPayload = await hostErrorPromise;
       expect(errorPayload.code).toBe(ERROR_CODES.INTERNAL_ERROR);

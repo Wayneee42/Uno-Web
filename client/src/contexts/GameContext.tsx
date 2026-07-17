@@ -1,10 +1,24 @@
-﻿import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type {
   ClientGameState,
   ClientToServerEvents,
   ErrorPayload,
+  InitializeProfileResponse,
+  MatchDetails,
+  MatchHistoryPage,
   PlayerDisconnectedPayload,
+  PlayerProfile,
+  ProfileStats,
   RoomInfo,
   ServerToClientEvents,
 } from '@uno-web/shared';
@@ -13,12 +27,17 @@ import { resolveServerUrl } from '../config/serverUrl';
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
-const STORAGE_KEY = 'uno-session';
+const SESSION_STORAGE_KEY = 'uno-session';
+const PROFILE_STORAGE_KEY = 'uno-profile';
 const DEFAULT_DISCONNECT_GRACE_MS = 30_000;
 
 type StoredSession = {
   playerId: string;
   sessionId: string;
+};
+
+type StoredProfile = {
+  recoveryCode: string;
 };
 
 type ReconnectWaitItem = {
@@ -34,11 +53,32 @@ interface GameContextValue {
   room: RoomInfo | null;
   gameState: ClientGameState | null;
   playerId: string | null;
+  profile: PlayerProfile | null;
+  profileReady: boolean;
+  historyAvailable: boolean;
+  recoveryCode: string | null;
   isConnected: boolean;
   systemMessage: string | null;
   globalError: ErrorPayload | null;
   reconnectWaitList: ReconnectWaitItem[];
   clearGlobalError: () => void;
+  importProfile: (recoveryCode: string) => Promise<{ success: boolean; error?: string }>;
+  rotateRecoveryCode: () => Promise<{ success: boolean; recoveryCode?: string; error?: string }>;
+  loadMatchHistory: (cursor?: string) => Promise<{
+    success: boolean;
+    page?: MatchHistoryPage;
+    error?: string;
+  }>;
+  loadMatchDetails: (matchId: string) => Promise<{
+    success: boolean;
+    match?: MatchDetails;
+    error?: string;
+  }>;
+  loadProfileStats: () => Promise<{
+    success: boolean;
+    stats?: ProfileStats;
+    error?: string;
+  }>;
   createRoom: (playerName: string) => Promise<RoomInfo | null>;
   joinRoom: (roomId: string, playerName: string) => Promise<{ success: boolean; error?: string }>;
   leaveRoom: () => void;
@@ -46,10 +86,15 @@ interface GameContextValue {
   startGame: () => Promise<{ success: boolean; error?: string }>;
   playAgain: () => Promise<{ success: boolean; error?: string }>;
   returnToLobby: () => Promise<{ success: boolean; error?: string }>;
-  playCard: (cardId: string, chosenColor?: ClientGameState['activeColor']) => Promise<{ success: boolean; error?: string }>;
+  playCard: (
+    cardId: string,
+    chosenColor?: ClientGameState['activeColor'],
+  ) => Promise<{ success: boolean; error?: string }>;
   drawCard: () => Promise<{ success: boolean; error?: string }>;
   endTurn: () => Promise<{ success: boolean; error?: string }>;
-  chooseDirection: (direction: ClientGameState['direction']) => Promise<{ success: boolean; error?: string }>;
+  chooseDirection: (
+    direction: ClientGameState['direction'],
+  ) => Promise<{ success: boolean; error?: string }>;
   callUno: () => void;
   challenge: (challenge: boolean) => Promise<{ success: boolean; error?: string }>;
 }
@@ -61,7 +106,7 @@ function readStoredSession(): StoredSession | null {
     return null;
   }
 
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
   if (!raw) {
     return null;
   }
@@ -72,7 +117,7 @@ function readStoredSession(): StoredSession | null {
       return { playerId: parsed.playerId, sessionId: parsed.sessionId };
     }
   } catch {
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(SESSION_STORAGE_KEY);
   }
 
   return null;
@@ -82,14 +127,39 @@ function persistSession(session: StoredSession): void {
   if (typeof window === 'undefined') {
     return;
   }
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
 }
 
 function clearStoredSession(): void {
   if (typeof window === 'undefined') {
     return;
   }
-  window.localStorage.removeItem(STORAGE_KEY);
+  window.localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+function readStoredProfile(): StoredProfile | null {
+  if (typeof window === 'undefined') return null;
+  const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<StoredProfile>;
+    return typeof parsed.recoveryCode === 'string'
+      ? { recoveryCode: parsed.recoveryCode }
+      : null;
+  } catch {
+    window.localStorage.removeItem(PROFILE_STORAGE_KEY);
+    return null;
+  }
+}
+
+function persistProfile(recoveryCode: string): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({ recoveryCode }));
+}
+
+function clearStoredProfile(): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(PROFILE_STORAGE_KEY);
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
@@ -97,12 +167,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [room, setRoom] = useState<RoomInfo | null>(null);
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(readStoredSession()?.playerId ?? null);
+  const [profile, setProfile] = useState<PlayerProfile | null>(null);
+  const [profileReady, setProfileReady] = useState(false);
+  const [historyAvailable, setHistoryAvailable] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(
+    readStoredProfile()?.recoveryCode ?? null
+  );
   const [isConnected, setIsConnected] = useState(false);
   const [systemMessage, setSystemMessage] = useState<string | null>(null);
   const [globalError, setGlobalError] = useState<ErrorPayload | null>(null);
   const [disconnectDeadlines, setDisconnectDeadlines] = useState<DeadlineRecord>({});
   const [nowTs, setNowTs] = useState(() => Date.now());
   const messageTimeoutRef = useRef<number | null>(null);
+  const sessionReplacedRef = useRef(false);
 
   const pushSystemMessage = useCallback((message: string) => {
     setSystemMessage(message);
@@ -204,19 +281,76 @@ export function GameProvider({ children }: { children: ReactNode }) {
       });
     };
 
+    const initializeProfile = () => {
+      const storedProfile = readStoredProfile();
+      const finishInitialization = (
+        response: InitializeProfileResponse,
+        retainedRecoveryCode?: string
+      ) => {
+        setHistoryAvailable(response.historyAvailable);
+        if (response.success && response.profile) {
+          setProfile(response.profile);
+          if (response.recoveryCode) {
+            persistProfile(response.recoveryCode);
+            setRecoveryCode(response.recoveryCode);
+          } else if (retainedRecoveryCode) {
+            setRecoveryCode(retainedRecoveryCode);
+          }
+        } else {
+          setProfile(null);
+          if (response.error) pushSystemMessage(response.error);
+        }
+        setProfileReady(true);
+
+        const storedSession = readStoredSession();
+        if (storedSession) {
+          setPlayerId(storedSession.playerId);
+          restoreSession(storedSession);
+        }
+      };
+
+      newSocket?.emit(
+        'initializeProfile',
+        storedProfile ? { recoveryCode: storedProfile.recoveryCode } : {},
+        response => {
+          const savedCodeIsInvalid =
+            Boolean(storedProfile) &&
+            (response.error === 'Recovery code not found' ||
+              response.error === 'Invalid recovery code format');
+          if (!savedCodeIsInvalid) {
+            finishInitialization(response, storedProfile?.recoveryCode);
+            return;
+          }
+
+          clearStoredProfile();
+          setRecoveryCode(null);
+          newSocket?.emit('initializeProfile', {}, freshResponse => {
+            finishInitialization(freshResponse);
+            if (freshResponse.success) {
+              pushSystemMessage(
+                'The saved recovery code expired. A new player profile was created.'
+              );
+            }
+          });
+        }
+      );
+    };
+
     newSocket.on('connect', () => {
       setIsConnected(true);
+      setProfileReady(false);
       setGlobalError(null);
       pushSystemMessage('Connected to server.');
-      const stored = readStoredSession();
-      if (stored) {
-        setPlayerId(stored.playerId);
-        restoreSession(stored);
-      }
+      initializeProfile();
     });
 
     newSocket.on('disconnect', () => {
       setIsConnected(false);
+      setProfileReady(false);
+      if (sessionReplacedRef.current) {
+        sessionReplacedRef.current = false;
+        return;
+      }
       setGlobalError(null);
       pushSystemMessage('Connection lost. Trying to reconnect...');
     });
@@ -271,12 +405,46 @@ export function GameProvider({ children }: { children: ReactNode }) {
           expiresAt: player.expiresAt,
         },
       }));
-      pushSystemMessage(`${player.name} disconnected. Waiting up to ${Math.ceil(player.graceMs / 1000)}s.`);
+      pushSystemMessage(
+        `${player.name} disconnected. Waiting up to ${Math.ceil(player.graceMs / 1000)}s.`
+      );
     });
 
     newSocket.on('playerReconnected', player => {
       removeDisconnectEntry(player.playerId);
       pushSystemMessage(`${player.name} reconnected.`);
+    });
+
+    newSocket.on('profileCredentialsRevoked', () => {
+      clearStoredProfile();
+      setProfile(null);
+      setRecoveryCode(null);
+      setHistoryAvailable(false);
+      pushSystemMessage('This profile recovery code was rotated on another device.');
+    });
+
+    newSocket.on('sessionReplaced', () => {
+      sessionReplacedRef.current = true;
+      clearStoredSession();
+      setPlayerId(null);
+      setRoom(null);
+      setGameState(null);
+      setDisconnectDeadlines({});
+      setGlobalError({
+        code: ERROR_CODES.SESSION_REPLACED,
+        message: 'This game session was resumed on another device.',
+      });
+      pushSystemMessage('This game session was resumed on another device.');
+    });
+
+    newSocket.on('serverRestarting', () => {
+      sessionReplacedRef.current = true;
+      clearStoredSession();
+      setPlayerId(null);
+      setRoom(null);
+      setGameState(null);
+      setDisconnectDeadlines({});
+      pushSystemMessage('Server is restarting. The current room has ended.');
     });
 
     newSocket.on('error', error => {
@@ -294,14 +462,90 @@ export function GameProvider({ children }: { children: ReactNode }) {
     };
   }, [pushSystemMessage, removeDisconnectEntry]);
 
+  const importProfile = useCallback(async (code: string) => {
+    if (!socket || room || gameState) {
+      return { success: false, error: 'Player profile can only be changed from the lobby' };
+    }
+    return new Promise<{ success: boolean; error?: string }>(resolve => {
+      socket.emit('initializeProfile', { recoveryCode: code.trim() }, response => {
+        setHistoryAvailable(response.historyAvailable);
+        if (!response.success || !response.profile) {
+          resolve({ success: false, error: response.error ?? 'Could not restore player profile' });
+          return;
+        }
+        persistProfile(code.trim());
+        setRecoveryCode(code.trim());
+        setProfile(response.profile);
+        setProfileReady(true);
+        resolve({ success: true });
+      });
+    });
+  }, [gameState, room, socket]);
+
+  const rotateRecoveryCode = useCallback(async () => {
+    if (!socket || !profile) {
+      return { success: false, error: 'Persistent player profile is unavailable' };
+    }
+    return new Promise<{ success: boolean; recoveryCode?: string; error?: string }>(resolve => {
+      socket.emit('rotateRecoveryCode', {}, response => {
+        if (response.success && response.recoveryCode) {
+          persistProfile(response.recoveryCode);
+          setRecoveryCode(response.recoveryCode);
+        }
+        resolve(response);
+      });
+    });
+  }, [profile, socket]);
+
+  const loadMatchHistory = useCallback(async (cursor?: string) => {
+    if (!socket || !profile) {
+      return { success: false, error: 'Persistent player profile is unavailable' };
+    }
+    return new Promise<{ success: boolean; page?: MatchHistoryPage; error?: string }>(resolve => {
+      socket.emit('getMatchHistory', { cursor, limit: 20 }, response => {
+        setHistoryAvailable(response.historyAvailable);
+        resolve({ success: response.success, page: response.page, error: response.error });
+      });
+    });
+  }, [profile, socket]);
+
+  const loadMatchDetails = useCallback(async (matchId: string) => {
+    if (!socket || !profile) {
+      return { success: false, error: 'Persistent player profile is unavailable' };
+    }
+    return new Promise<{ success: boolean; match?: MatchDetails; error?: string }>(resolve => {
+      socket.emit('getMatchDetails', { matchId }, response => {
+        setHistoryAvailable(response.historyAvailable);
+        resolve({ success: response.success, match: response.match, error: response.error });
+      });
+    });
+  }, [profile, socket]);
+
+  const loadProfileStats = useCallback(async () => {
+    if (!socket || !profile) {
+      return { success: false, error: 'Persistent player profile is unavailable' };
+    }
+    return new Promise<{ success: boolean; stats?: ProfileStats; error?: string }>(resolve => {
+      socket.emit('getProfileStats', {}, response => {
+        setHistoryAvailable(response.historyAvailable);
+        resolve({ success: response.success, stats: response.stats, error: response.error });
+      });
+    });
+  }, [profile, socket]);
+
   const createRoom = useCallback(async (playerName: string): Promise<RoomInfo | null> => {
     if (!socket) return null;
     setGlobalError(null);
     return new Promise(resolve => {
       socket.emit('createRoom', { playerName }, response => {
+        if (!response.success || !response.room || !response.playerId || !response.sessionId) {
+          resolve(null);
+          return;
+        }
         persistSession({ playerId: response.playerId, sessionId: response.sessionId });
         setPlayerId(response.playerId);
         setRoom(response.room);
+        setProfile(previous => previous ? { ...previous, displayName: playerName } : previous);
         setGameState(null);
         setDisconnectDeadlines({});
         resolve(response.room);
@@ -318,6 +562,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           persistSession({ playerId: response.playerId, sessionId: response.sessionId });
           setPlayerId(response.playerId);
           setRoom(response.room);
+          setProfile(previous => previous ? { ...previous, displayName: playerName } : previous);
           setGameState(null);
           setDisconnectDeadlines({});
         }
@@ -368,13 +613,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, [socket]);
 
-  const playCard = useCallback(async (cardId: string, chosenColor?: ClientGameState['activeColor']) => {
-    if (!socket) return { success: false, error: 'Not connected' };
-    setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>(resolve => {
-      socket.emit('playCard', { cardId, chosenColor: chosenColor ?? undefined }, resolve);
-    });
-  }, [socket]);
+  const playCard = useCallback(
+    async (cardId: string, chosenColor?: ClientGameState['activeColor']) => {
+      if (!socket) return { success: false, error: 'Not connected' };
+      setGlobalError(null);
+      return new Promise<{ success: boolean; error?: string }>(resolve => {
+        socket.emit('playCard', { cardId, chosenColor: chosenColor ?? undefined }, resolve);
+      });
+    },
+    [socket],
+  );
 
   const drawCard = useCallback(async () => {
     if (!socket) return { success: false, error: 'Not connected' };
@@ -392,13 +640,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
     });
   }, [socket]);
 
-  const chooseDirection = useCallback(async (direction: ClientGameState['direction']) => {
-    if (!socket) return { success: false, error: 'Not connected' };
-    setGlobalError(null);
-    return new Promise<{ success: boolean; error?: string }>(resolve => {
-      socket.emit('chooseDirection', { direction }, resolve);
-    });
-  }, [socket]);
+  const chooseDirection = useCallback(
+    async (direction: ClientGameState['direction']) => {
+      if (!socket) return { success: false, error: 'Not connected' };
+      setGlobalError(null);
+      return new Promise<{ success: boolean; error?: string }>(resolve => {
+        socket.emit('chooseDirection', { direction }, resolve);
+      });
+    },
+    [socket],
+  );
 
   const callUno = useCallback(() => {
     if (!socket) return;
@@ -421,11 +672,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
         room,
         gameState,
         playerId,
+        profile,
+        profileReady,
+        historyAvailable,
+        recoveryCode,
         isConnected,
         systemMessage,
         globalError,
         reconnectWaitList,
         clearGlobalError,
+        importProfile,
+        rotateRecoveryCode,
+        loadMatchHistory,
+        loadMatchDetails,
+        loadProfileStats,
         createRoom,
         joinRoom,
         leaveRoom,

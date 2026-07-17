@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { resolveSocketCorsOrigin } from './cors.js';
 
 describe('resolveSocketCorsOrigin', () => {
@@ -21,4 +21,3 @@ describe('resolveSocketCorsOrigin', () => {
     ]);
   });
 });
-

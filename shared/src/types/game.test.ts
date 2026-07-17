@@ -1,13 +1,16 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { GameState } from './game.js';
 import { getNextPlayerIndex, toClientGameState } from './game.js';
 
 const baseState: GameState = {
+  matchId: '00000000-0000-4000-8000-000000000001',
   roomId: 'ROOM1',
+  startedAt: 1,
   phase: 'playing',
   players: [
     {
       id: 'p1',
+      profileId: 'profile-1',
       sessionId: 'session-1',
       name: 'Alice',
       hand: [{ id: 'c1', color: 'Red', value: '1' }],
@@ -18,6 +21,7 @@ const baseState: GameState = {
     },
     {
       id: 'p2',
+      profileId: 'profile-2',
       sessionId: 'session-2',
       name: 'Bob',
       hand: [{ id: 'c2', color: 'Blue', value: '2' }],
@@ -43,6 +47,7 @@ const baseState: GameState = {
   winnerId: null,
   reshuffleCount: 0,
   isDraw: false,
+  eventSequence: 0,
   eventLog: [],
 };
 
@@ -58,6 +63,8 @@ describe('game utils', () => {
     expect(clientState.otherPlayers).toHaveLength(1);
     expect(clientState.otherPlayers[0].connected).toBe(false);
     expect(clientState.topCard.value).toBe('3');
+    expect(clientState.myPlayer).not.toHaveProperty('sessionId');
+    expect(clientState.myPlayer).not.toHaveProperty('socketId');
   });
 });
 

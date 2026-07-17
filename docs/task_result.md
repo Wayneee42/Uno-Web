@@ -138,7 +138,7 @@
 
 &nbsp; - VITE\_SERVER\_URL（前端连接后端地址，默认 http://localhost:3001）
 
-&nbsp; - CLIENT\_ORIGIN（后端 CORS 允许来源，默认 http://localhost:5173）
+&nbsp; - CLIENT\_ORIGIN（后端 CORS 允许来源，默认 http://localhost:3000）
 
 
 

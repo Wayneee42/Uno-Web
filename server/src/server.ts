@@ -1,8 +1,9 @@
-﻿import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { ERROR_CODES } from '@uno-web/shared';
 import { resolveSocketCorsOrigin } from './config/cors.js';
+import { historyService } from './history/index.js';
 import { registerSocketHandlers } from './socket/handlers.js';
 import { logger, normalizeError } from './utils/logger.js';
 
@@ -26,7 +27,10 @@ export function createApp() {
   const app = express();
 
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
+    res.json({
+      status: 'ok',
+      history: historyService.isHistoryAvailable() ? 'available' : 'degraded',
+    });
   });
 
   return app;

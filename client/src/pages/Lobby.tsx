@@ -1,5 +1,8 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { History, UserRound } from 'lucide-react';
+import { HistoryView } from '../components/HistoryView';
+import { ProfileView } from '../components/ProfileView';
 import { useGame } from '../contexts/GameContext';
 
 function formatJoinError(error?: string): string {
@@ -32,6 +35,9 @@ export default function Lobby() {
     setReady,
     startGame,
     playerId,
+    profile,
+    profileReady = true,
+    historyAvailable,
     systemMessage,
     globalError,
     reconnectWaitList,
@@ -44,7 +50,14 @@ export default function Lobby() {
   const [showJoinForm, setShowJoinForm] = useState(false);
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [activeView, setActiveView] = useState<'lobby' | 'history' | 'profile'>('lobby');
   const copyToastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!playerName && profile?.displayName) {
+      setPlayerName(profile.displayName);
+    }
+  }, [playerName, profile?.displayName]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -207,6 +220,14 @@ export default function Lobby() {
 
   const waitHint = buildWaitHint(reconnectWaitList);
 
+  if (!room && activeView === 'history') {
+    return <HistoryView onBack={() => setActiveView('lobby')} />;
+  }
+
+  if (!room && activeView === 'profile') {
+    return <ProfileView onBack={() => setActiveView('lobby')} />;
+  }
+
   if (room) {
     const inviteLink = typeof window === 'undefined'
       ? `?room=${room.roomId}`
@@ -234,6 +255,9 @@ export default function Lobby() {
         <AnimatePresence>
           {showExitConfirm && (
             <motion.div
+              role={'dialog'}
+              aria-modal={true}
+              aria-label={'Exit room confirmation'}
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -401,7 +425,7 @@ export default function Lobby() {
     );
   }
 
-  if (!isConnected) {
+  if (!isConnected || !profileReady) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4">
         <div className="w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-4"></div>
@@ -419,8 +443,31 @@ export default function Lobby() {
       >
         <h1 className="text-6xl sm:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-br from-blue-400 via-indigo-400 to-purple-400 mb-8 sm:mb-12 drop-shadow-lg text-center tracking-tighter">
           UNO<span className="text-blue-500">.</span>WEB
-        </h1>
-      </motion.div>
+          </h1>
+        </motion.div>
+
+        <div className={'mb-5 flex justify-center gap-2'}>
+          <button
+            type={'button'}
+            onClick={() => setActiveView('history')}
+            disabled={!profile}
+            className={'icon-button relative disabled:opacity-40'}
+            aria-label={'Open match history'}
+            title={'Match history'}
+          >
+            <History className={'h-5 w-5'} />
+            <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${historyAvailable ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          </button>
+          <button
+            type={'button'}
+            onClick={() => setActiveView('profile')}
+            className={'icon-button'}
+            aria-label={'Open player profile'}
+            title={'Player profile'}
+          >
+            <UserRound className={'h-5 w-5'} />
+          </button>
+        </div>
 
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}

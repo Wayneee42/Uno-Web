@@ -1,4 +1,4 @@
-﻿function normalizeOrigin(origin: string): string {
+function normalizeOrigin(origin: string): string {
   return origin.trim().replace(/\/+$/, '');
 }
 

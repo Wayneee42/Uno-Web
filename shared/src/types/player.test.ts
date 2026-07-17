@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { Player } from './player.js';
 import { toPublicPlayer } from './player.js';
 
@@ -6,6 +6,7 @@ describe('player utils', () => {
   it('maps player to public player', () => {
     const player: Player = {
       id: 'p1',
+      profileId: 'profile-1',
       sessionId: 'session-1',
       name: 'Alice',
       hand: [{ id: 'c1', color: 'Red', value: '1' }],

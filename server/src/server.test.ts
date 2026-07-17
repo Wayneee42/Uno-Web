@@ -1,9 +1,19 @@
-﻿import request from 'supertest';
+import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@uno-web/shared';
 import { attachErrorMiddleware, createApp } from './server.js';
 
 describe('server http error handling', () => {
+  it('reports liveness and history availability separately', async () => {
+    const response = await request(createApp()).get('/health');
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      status: 'ok',
+      history: expect.stringMatching(/^(available|degraded)$/),
+    });
+  });
+
   it('returns a normalized internal error response for thrown route errors', async () => {
     const app = createApp();
 

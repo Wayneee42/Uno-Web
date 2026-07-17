@@ -15,6 +15,24 @@
   }
 }
 
+@layer components {
+  .icon-button {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-slate-300 transition hover:bg-white/10 hover:text-white;
+  }
+
+  .status-warning {
+    @apply mb-5 rounded-lg border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200;
+  }
+
+  .status-error {
+    @apply mb-5 rounded-lg border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200;
+  }
+
+  .status-success {
+    @apply mb-5 flex items-center gap-2 rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200;
+  }
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -28,11 +46,19 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   @apply bg-gradient-to-tr from-slate-950 via-slate-900 to-slate-800 text-slate-100;
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
+}
+
+@supports (height: 100dvh) {
+  .h-screen {
+    height: 100dvh;
+  }
 }
 

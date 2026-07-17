@@ -1,5 +1,6 @@
-﻿import type { Card, CardColor } from './card.js';
-import type { Player, PublicPlayer } from './player.js';
+import type { Card, CardColor } from './card.js';
+import type { ClientPlayer, Player, PublicPlayer } from './player.js';
+import { toClientPlayer } from './player.js';
 
 export type GamePhase = 'waiting' | 'dealing' | 'playing' | 'finished';
 
@@ -7,12 +8,17 @@ export type PlayDirection = 1 | -1;
 
 export interface GameLogEntry {
   id: string;
+  sequence: number;
+  type: string;
+  actorPlayerId?: string;
   createdAt: number;
   message: string;
 }
 
 export interface GameState {
+  matchId: string;
   roomId: string;
+  startedAt: number;
   phase: GamePhase;
   players: Player[];
   currentPlayerIndex: number;
@@ -31,6 +37,7 @@ export interface GameState {
   winnerId: string | null;
   reshuffleCount: number;
   isDraw: boolean;
+  eventSequence: number;
   eventLog: GameLogEntry[];
 }
 
@@ -43,9 +50,11 @@ export interface ChallengeState {
 }
 
 export interface ClientGameState {
+  matchId: string;
   roomId: string;
+  startedAt: number;
   phase: GamePhase;
-  myPlayer: Player;
+  myPlayer: ClientPlayer;
   otherPlayers: PublicPlayer[];
   currentPlayerIndex: number;
   myPlayerIndex: number;
@@ -71,7 +80,7 @@ export function toClientGameState(state: GameState, playerId: string): ClientGam
     throw new Error(`Player ${playerId} not found in game`);
   }
 
-  const myPlayer = state.players[myPlayerIndex];
+  const myPlayer = toClientPlayer(state.players[myPlayerIndex], myPlayerIndex);
   const otherPlayers = state.players
     .filter((_, index) => index !== myPlayerIndex)
     .map(p => ({
@@ -87,7 +96,9 @@ export function toClientGameState(state: GameState, playerId: string): ClientGam
   const topCard = state.discardPile[state.discardPile.length - 1];
 
   return {
+    matchId: state.matchId,
     roomId: state.roomId,
+    startedAt: state.startedAt,
     phase: state.phase,
     myPlayer,
     otherPlayers,

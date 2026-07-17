@@ -1,4 +1,4 @@
-﻿# Vercel + Render 部署步骤
+# Vercel + Render 部署步骤
 
 ## 1. 目标
 
@@ -6,6 +6,7 @@
 
 - 前端部署到 Vercel
 - 后端部署到 Render Web Service
+- 对局历史保存到 Render PostgreSQL
 
 并且尽量写清楚每一步在面板里怎么填。
 
@@ -18,6 +19,7 @@
 - `client`：前端 Vite 应用
 - `server`：Node + Express + Socket.IO
 - `shared`：前后端共享类型
+- `server/migrations`：PostgreSQL 数据库迁移
 
 因此部署思路应该是：
 
@@ -27,6 +29,7 @@
 - Render 也从仓库根目录构建
 - 构建时先 build `shared`
 - 再 build `server`
+- Render Web Service 使用同区域 PostgreSQL 的 Internal Database URL
 
 不要把 Vercel 或 Render 直接只指向 `client` 或 `server` 目录，否则 workspace 依赖更容易出问题。
 
@@ -37,6 +40,7 @@
 - Git 仓库已推送到 GitHub
 - 一个 Render 账号
 - 一个 Vercel 账号
+- Render PostgreSQL 的创建日期和到期日期
 - 你想使用的项目名
 - 是否要用自定义域名
 
@@ -50,6 +54,20 @@
 ## 4. 先部署后端到 Render
 
 建议先部署 Render，因为前端最终要填 `VITE_SERVER_URL`。
+
+### 4.0 先创建 Render PostgreSQL
+
+在创建 Web Service 前：
+
+1. 点击 `New +`
+2. 选择 `Postgres`
+3. 数据库名可填 `uno_web`
+4. Region 必须和后面的 Web Service 相同
+5. 先选择 Free
+6. 创建后复制 `Internal Database URL`
+7. 记录创建日期、30 天到期日期和第 20 天升级检查日期
+
+Free PostgreSQL 自创建起 30 天到期且没有备份。到期后只有 14 天升级宽限期，所以它只适合当前试运行阶段。详见 [Render Free 文档](https://render.com/docs/free)。
 
 ### 4.1 在 Render 创建服务
 
@@ -92,7 +110,7 @@ Node
 
 `Build Command`
 ```bash
-npm install && npm run build --workspace=shared && npm run build --workspace=server
+npm ci && npm run build --workspace=shared && npm run build --workspace=server
 ```
 
 `Start Command`
@@ -128,6 +146,18 @@ https://your-vercel-project.vercel.app
 info
 ```
 
+`DATABASE_URL`
+```text
+粘贴 PostgreSQL 的 Internal Database URL
+```
+
+`DB_POOL_MAX`
+```text
+5
+```
+
+后端启动时会自动执行 `server/migrations` 中尚未应用的迁移。迁移使用数据库锁处理 Render 新旧实例短暂重叠的情况。迁移失败时，后端仍会启动并允许游戏继续，但战绩只会临时保存在当前实例内存中。
+
 `PORT`
 ```text
 不用手动填
@@ -153,6 +183,10 @@ https://uno-web-server.onrender.com/health
 ```json
 {"status":"ok"}
 ```
+
+响应中的 `history` 应为 `available`。如果是 `degraded`，说明游戏可用，但长期战绩当前没有正常连接数据库。
+
+还要确认部署日志中出现 `database.migrations_ready`，并且没有持续出现 `history.persistence_deferred`。
 
 如果 `/health` 不通，不要继续配 Vercel，先把 Render 跑通。
 
@@ -195,7 +229,7 @@ client/dist
 
 `Install Command`
 ```bash
-npm install
+npm ci
 ```
 
 `Development Command`
@@ -217,6 +251,7 @@ https://your-render-service.onrender.com
 - 不要带最后的 `/`
 - 要填 Render 分配给你的真实公网地址
 - 如果以后 Render 域名变了，要同步更新这里
+- 不要在 Vercel 配置 `DATABASE_URL`
 
 ### 5.4 Vercel 首次部署后要确认什么
 
@@ -256,15 +291,16 @@ https://your-vercel-project.vercel.app,https://uno.example.com
 
 为了少踩坑，推荐顺序是：
 
-1. 先在 Render 创建后端服务
-2. 确认 `/health` 可访问
-3. 拿到 Render 服务 URL
-4. 在 Vercel 创建前端项目
-5. 在 Vercel 填 `VITE_SERVER_URL`
-6. 拿到 Vercel 生产 URL
-7. 回 Render 更新 `CLIENT_ORIGIN`
-8. 重新部署 Render
-9. 做真实联机测试
+1. 先在 Render 创建同区域 PostgreSQL
+2. 创建 Render Web Service 并配置 `DATABASE_URL`
+3. 确认 `/health` 和迁移日志
+4. 拿到 Render 服务 URL
+5. 在 Vercel 创建前端项目
+6. 在 Vercel 填 `VITE_SERVER_URL`
+7. 拿到 Vercel 生产 URL
+8. 回 Render 更新 `CLIENT_ORIGIN`
+9. 重新部署 Render
+10. 做真实联机和战绩恢复测试
 
 这个顺序比“先把两边一次性全配好”更稳，因为前后端地址本身就是相互依赖的。
 
@@ -279,7 +315,7 @@ https://your-vercel-project.vercel.app,https://uno.example.com
 
 `Build Command`
 ```bash
-npm install && npm run build --workspace=shared && npm run build --workspace=server
+npm ci && npm run build --workspace=shared && npm run build --workspace=server
 ```
 
 `Start Command`
@@ -291,6 +327,8 @@ npm run start --workspace=server
 ```text
 CLIENT_ORIGIN=https://your-vercel-project.vercel.app
 LOG_LEVEL=info
+DATABASE_URL=<Render Internal Database URL>
+DB_POOL_MAX=5
 ```
 
 ### 8.2 Vercel 汇总
@@ -317,7 +355,7 @@ client/dist
 
 `Install Command`
 ```bash
-npm install
+npm ci
 ```
 
 `Environment Variables`
@@ -364,6 +402,8 @@ https://your-vercel-project.vercel.app
 5. 进行几次出牌和摸牌
 6. 其中一方刷新页面，验证 session 恢复
 7. 其中一方断网再恢复，验证重连提示
+8. 完成一局后打开“我的战绩”，确认胜负和公开事件
+9. 在另一浏览器导入恢复码，确认能看到相同历史
 
 如果这些都能通过，这套 `Vercel + Render` 的朋友联机方案就基本成立了。
 
@@ -423,6 +463,28 @@ https://uno-web-client.vercel.app/lobby
 - 朋友第一次打开页面时连接要等一会儿
 
 这不一定是代码问题，可能只是套餐限制。
+
+### 10.5 游戏正常但战绩显示降级
+
+优先检查：
+
+- Web Service 和 PostgreSQL 是否在同一区域
+- `DATABASE_URL` 是否使用 Internal Database URL
+- Free PostgreSQL 是否已经到期
+- Render 日志是否出现 `database.migrations_failed` 或 `history.persistence_deferred`
+
+数据库故障不会阻止游戏，但本实例重启前仍未成功写入的记录可能丢失。数据库恢复后，后端会继续重试待写归档。
+
+### 10.6 免费 PostgreSQL 即将到期
+
+不要等到第 30 天再处理。建议第 20 天开始：
+
+1. 确认是否继续使用项目
+2. 继续使用则在 Render 升级数据库
+3. 不升级则通过 External Database URL 导出数据
+4. 升级或迁移后重新验证恢复码和历史详情
+
+`DATABASE_URL` 只属于 Render 后端环境，不应出现在 Vercel、前端源码、截图或提交记录中。
 
 ## 11. 最后建议
 

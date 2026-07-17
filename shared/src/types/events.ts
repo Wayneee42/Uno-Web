@@ -1,5 +1,11 @@
-﻿import type { CardColor } from './card.js';
+import type { CardColor } from './card.js';
 import type { ClientGameState, PlayDirection } from './game.js';
+import type {
+  MatchDetails,
+  MatchHistoryPage,
+  PlayerProfile,
+  ProfileStats,
+} from './history.js';
 
 export interface CreateRoomPayload {
   playerName: string;
@@ -12,6 +18,54 @@ export interface JoinRoomPayload {
 
 export interface ResumeSessionPayload {
   sessionId: string;
+}
+
+export interface InitializeProfilePayload {
+  recoveryCode?: string;
+}
+
+export interface InitializeProfileResponse {
+  success: boolean;
+  profile?: PlayerProfile;
+  recoveryCode?: string;
+  historyAvailable: boolean;
+  error?: string;
+}
+
+export interface RotateRecoveryCodeResponse {
+  success: boolean;
+  recoveryCode?: string;
+  error?: string;
+}
+
+export interface MatchHistoryPayload {
+  cursor?: string;
+  limit?: number;
+}
+
+export interface MatchHistoryResponse {
+  success: boolean;
+  page?: MatchHistoryPage;
+  historyAvailable: boolean;
+  error?: string;
+}
+
+export interface MatchDetailsPayload {
+  matchId: string;
+}
+
+export interface MatchDetailsResponse {
+  success: boolean;
+  match?: MatchDetails;
+  historyAvailable: boolean;
+  error?: string;
+}
+
+export interface ProfileStatsResponse {
+  success: boolean;
+  stats?: ProfileStats;
+  historyAvailable: boolean;
+  error?: string;
 }
 
 export interface ReadyPayload {
@@ -53,6 +107,7 @@ export interface ErrorPayload {
 }
 
 export const ERROR_CODES = {
+  CREATE_ROOM_FAILED: 'CREATE_ROOM_FAILED',
   JOIN_ROOM_FAILED: 'JOIN_ROOM_FAILED',
   RESUME_SESSION_FAILED: 'RESUME_SESSION_FAILED',
   START_GAME_FAILED: 'START_GAME_FAILED',
@@ -65,6 +120,10 @@ export const ERROR_CODES = {
   CALL_UNO_FAILED: 'CALL_UNO_FAILED',
   CHALLENGE_FAILED: 'CHALLENGE_FAILED',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  PROFILE_FAILED: 'PROFILE_FAILED',
+  HISTORY_FAILED: 'HISTORY_FAILED',
+  SESSION_REPLACED: 'SESSION_REPLACED',
+  INVALID_PAYLOAD: 'INVALID_PAYLOAD',
 } as const;
 
 export type ErrorCode = typeof ERROR_CODES[keyof typeof ERROR_CODES];
@@ -93,10 +152,12 @@ export interface PlayerDisconnectedPayload extends PlayerPresencePayload {
   expiresAt: number;
 }
 
-export interface SessionResponse {
-  room: RoomInfo;
-  playerId: string;
-  sessionId: string;
+export interface CreateRoomResponse {
+  success: boolean;
+  room?: RoomInfo;
+  playerId?: string;
+  sessionId?: string;
+  error?: string;
 }
 
 export interface JoinRoomResponse {
@@ -116,21 +177,57 @@ export interface ResumeSessionResponse {
   error?: string;
 }
 
+export interface ActionResponse {
+  success: boolean;
+  error?: string;
+}
+
+type ActionCallback = (response: ActionResponse) => void;
+
 export interface ClientToServerEvents {
-  createRoom: (payload: CreateRoomPayload, callback: (response: SessionResponse) => void) => void;
-  joinRoom: (payload: JoinRoomPayload, callback: (response: JoinRoomResponse) => void) => void;
-  resumeSession: (payload: ResumeSessionPayload, callback: (response: ResumeSessionResponse) => void) => void;
+  initializeProfile: (
+    payload: InitializeProfilePayload,
+    callback: (response: InitializeProfileResponse) => void,
+  ) => void;
+  rotateRecoveryCode: (
+    payload: Record<string, never>,
+    callback: (response: RotateRecoveryCodeResponse) => void,
+  ) => void;
+  getMatchHistory: (
+    payload: MatchHistoryPayload,
+    callback: (response: MatchHistoryResponse) => void,
+  ) => void;
+  getMatchDetails: (
+    payload: MatchDetailsPayload,
+    callback: (response: MatchDetailsResponse) => void,
+  ) => void;
+  getProfileStats: (
+    payload: Record<string, never>,
+    callback: (response: ProfileStatsResponse) => void,
+  ) => void;
+  createRoom: (
+    payload: CreateRoomPayload,
+    callback: (response: CreateRoomResponse) => void,
+  ) => void;
+  joinRoom: (
+    payload: JoinRoomPayload,
+    callback: (response: JoinRoomResponse) => void,
+  ) => void;
+  resumeSession: (
+    payload: ResumeSessionPayload,
+    callback: (response: ResumeSessionResponse) => void,
+  ) => void;
   leaveRoom: (callback: () => void) => void;
   ready: (payload: ReadyPayload) => void;
-  startGame: (payload: StartGamePayload, callback: (response: { success: boolean; error?: string }) => void) => void;
-  playAgain: (payload: PlayAgainPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
-  playCard: (payload: PlayCardPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
-  drawCard: (payload: DrawCardPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
-  endTurn: (payload: EndTurnPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
-  chooseDirection: (payload: ChooseDirectionPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
+  startGame: (payload: StartGamePayload, callback: ActionCallback) => void;
+  playAgain: (payload: PlayAgainPayload, callback: ActionCallback) => void;
+  playCard: (payload: PlayCardPayload, callback: ActionCallback) => void;
+  drawCard: (payload: DrawCardPayload, callback: ActionCallback) => void;
+  endTurn: (payload: EndTurnPayload, callback: ActionCallback) => void;
+  chooseDirection: (payload: ChooseDirectionPayload, callback: ActionCallback) => void;
   callUno: (payload: CallUnoPayload) => void;
-  challenge: (payload: ChallengePayload, callback: (response: { success: boolean; error?: string }) => void) => void;
-  returnToLobby: (payload: ReturnToLobbyPayload, callback: (response: { success: boolean; error?: string }) => void) => void;
+  challenge: (payload: ChallengePayload, callback: ActionCallback) => void;
+  returnToLobby: (payload: ReturnToLobbyPayload, callback: ActionCallback) => void;
 }
 
 export interface ServerToClientEvents {
@@ -143,9 +240,17 @@ export interface ServerToClientEvents {
   playerLeft: (playerId: string) => void;
   playerDisconnected: (player: PlayerDisconnectedPayload) => void;
   playerReconnected: (player: PlayerPresencePayload) => void;
+  profileCredentialsRevoked: () => void;
+  sessionReplaced: () => void;
+  serverRestarting: () => void;
 }
 
 export const SOCKET_EVENTS = {
+  INITIALIZE_PROFILE: 'initializeProfile',
+  ROTATE_RECOVERY_CODE: 'rotateRecoveryCode',
+  GET_MATCH_HISTORY: 'getMatchHistory',
+  GET_MATCH_DETAILS: 'getMatchDetails',
+  GET_PROFILE_STATS: 'getProfileStats',
   CREATE_ROOM: 'createRoom',
   JOIN_ROOM: 'joinRoom',
   RESUME_SESSION: 'resumeSession',
@@ -169,5 +274,7 @@ export const SOCKET_EVENTS = {
   PLAYER_LEFT: 'playerLeft',
   PLAYER_DISCONNECTED: 'playerDisconnected',
   PLAYER_RECONNECTED: 'playerReconnected',
+  PROFILE_CREDENTIALS_REVOKED: 'profileCredentialsRevoked',
+  SESSION_REPLACED: 'sessionReplaced',
+  SERVER_RESTARTING: 'serverRestarting',
 } as const;
-

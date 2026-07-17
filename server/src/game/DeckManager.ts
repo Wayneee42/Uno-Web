@@ -76,7 +76,7 @@ export function hasPlayableCard(hand: Card[], topCard: Card, activeColor: CardCo
 
 export function getCardScore(card: Card): number {
   if (card.color === 'Wild') {
-    return card.value === 'WildDraw4' ? 50 : 40;
+    return 50;
   }
 
   switch (card.value) {

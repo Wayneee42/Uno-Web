@@ -1,4 +1,4 @@
-﻿import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientGameState } from '@uno-web/shared';
@@ -11,16 +11,16 @@ vi.mock('../contexts/GameContext', () => ({
 }));
 
 const baseState: ClientGameState = {
+  matchId: '47cc9885-2892-48ea-9a90-beb264317f95',
   roomId: 'ROOM1',
+  startedAt: Date.now(),
   phase: 'playing',
   myPlayer: {
     id: 'p1',
-    sessionId: 'session-1',
     name: 'Alice',
     hand: [{ id: 'c1', color: 'Red', value: '1' }],
     status: 'playing',
     hasCalledUno: false,
-    socketId: 'sock-1',
     connected: true,
   },
   otherPlayers: [
@@ -52,6 +52,8 @@ const baseState: ClientGameState = {
   eventLog: [
     {
       id: 'log-1',
+      sequence: 1,
+      type: 'game_started',
       createdAt: Date.now(),
       message: 'Game started with 3 players.',
     },
@@ -200,10 +202,14 @@ describe('Game', () => {
     });
 
     render(<Game />);
-    await user.click(screen.getByRole('button', { name: 'Leave Game' }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: 'Leave Game' }));
+    });
 
     expect(screen.getByText('Leave Game?')).toBeInTheDocument();
-    await user.click(screen.getAllByRole('button', { name: 'Leave Game' })[1]);
+    await act(async () => {
+      await user.click(screen.getAllByRole('button', { name: 'Leave Game' })[1]);
+    });
     expect(leaveRoom).toHaveBeenCalledTimes(1);
   });
 });

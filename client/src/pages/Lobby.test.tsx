@@ -1,5 +1,6 @@
-﻿import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Lobby from './Lobby';
 
@@ -50,7 +51,9 @@ describe('Lobby', () => {
     });
 
     render(<Lobby />);
-    await user.click(screen.getByRole('button', { name: 'Create New Room' }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: 'Create New Room' }));
+    });
     expect(screen.getByText('Please enter your name.')).toBeInTheDocument();
   });
 
@@ -126,10 +129,16 @@ describe('Lobby', () => {
     });
 
     render(<Lobby />);
-    await user.click(screen.getByRole('button', { name: 'Exit Room' }));
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: 'Exit Room' }));
+    });
 
     expect(screen.getByText('Exit Room?')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Exit Room', exact: true }));
+    await act(async () => {
+      await user.click(
+        within(screen.getByRole('dialog')).getByRole('button', { name: 'Exit Room' })
+      );
+    });
     expect(leaveRoom).toHaveBeenCalledTimes(1);
   });
 });

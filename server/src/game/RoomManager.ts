@@ -1,4 +1,5 @@
 import type { Player, RoomInfo } from '@uno-web/shared';
+import { randomInt } from 'crypto';
 
 interface Room {
   id: string;
@@ -13,6 +14,7 @@ export const RECONNECT_GRACE_MS = 30_000;
 
 export class RoomManager {
   private rooms: Map<string, Room> = new Map();
+  private profilePlayerMap: Map<string, string> = new Map();
 
   getReconnectGraceMs(): number {
     return RECONNECT_GRACE_MS;
@@ -23,7 +25,11 @@ export class RoomManager {
   private disconnectTimers: Map<string, NodeJS.Timeout> = new Map();
 
   generateRoomId(): string {
-    return this.generateId(6, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');
+    let roomId = this.generateId(6, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');
+    while (this.rooms.has(roomId)) {
+      roomId = this.generateId(6, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789');
+    }
+    return roomId;
   }
 
   private generatePlayerId(): string {
@@ -37,18 +43,35 @@ export class RoomManager {
   private generateId(length: number, alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'): string {
     let result = '';
     for (let i = 0; i < length; i += 1) {
-      result += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+      result += alphabet.charAt(randomInt(0, alphabet.length));
     }
     return result;
   }
 
-  createRoom(playerName: string, socketId: string): { room: RoomInfo; playerId: string; sessionId: string } {
+  createRoom(
+    playerName: string,
+    socketId: string,
+    profileId: string | null = null
+  ): {
+    success: boolean;
+    room?: RoomInfo;
+    playerId?: string;
+    sessionId?: string;
+    error?: string;
+  } {
+    if (this.socketPlayerMap.has(socketId)) {
+      return { success: false, error: 'This connection is already in a room' };
+    }
+    if (profileId && this.profilePlayerMap.has(profileId)) {
+      return { success: false, error: 'This profile is already in an active room' };
+    }
     const roomId = this.generateRoomId();
     const playerId = this.generatePlayerId();
     const sessionId = this.generateSessionId();
 
     const player: Player = {
       id: playerId,
+      profileId,
       sessionId,
       name: playerName,
       hand: [],
@@ -69,15 +92,30 @@ export class RoomManager {
     this.playerRoomMap.set(playerId, roomId);
     this.sessionPlayerMap.set(sessionId, playerId);
     this.socketPlayerMap.set(socketId, playerId);
+    if (profileId) {
+      this.profilePlayerMap.set(profileId, playerId);
+    }
 
     return {
+      success: true,
       room: this.toRoomInfo(room),
       playerId,
       sessionId,
     };
   }
 
-  joinRoom(roomId: string, playerName: string, socketId: string): { success: boolean; room?: RoomInfo; error?: string; playerId?: string; sessionId?: string } {
+  joinRoom(
+    roomId: string,
+    playerName: string,
+    socketId: string,
+    profileId: string | null = null
+  ): { success: boolean; room?: RoomInfo; error?: string; playerId?: string; sessionId?: string } {
+    if (this.socketPlayerMap.has(socketId)) {
+      return { success: false, error: 'This connection is already in a room' };
+    }
+    if (profileId && this.profilePlayerMap.has(profileId)) {
+      return { success: false, error: 'This profile is already in an active room' };
+    }
     const room = this.rooms.get(roomId);
     if (!room) {
       return { success: false, error: 'Room not found' };
@@ -91,6 +129,7 @@ export class RoomManager {
     const sessionId = this.generateSessionId();
     const player: Player = {
       id: playerId,
+      profileId,
       sessionId,
       name: playerName,
       hand: [],
@@ -104,6 +143,9 @@ export class RoomManager {
     this.playerRoomMap.set(playerId, roomId);
     this.sessionPlayerMap.set(sessionId, playerId);
     this.socketPlayerMap.set(socketId, playerId);
+    if (profileId) {
+      this.profilePlayerMap.set(profileId, playerId);
+    }
 
     return {
       success: true,
@@ -119,6 +161,10 @@ export class RoomManager {
 
   getPlayerIdBySessionId(sessionId: string): string | undefined {
     return this.sessionPlayerMap.get(sessionId);
+  }
+
+  getPlayerIdByProfileId(profileId: string): string | undefined {
+    return this.profilePlayerMap.get(profileId);
   }
 
   getPlayerById(playerId: string): Player | undefined {
@@ -199,6 +245,11 @@ export class RoomManager {
       return null;
     }
 
+    if (player.socketId !== socketId) {
+      this.socketPlayerMap.delete(socketId);
+      return null;
+    }
+
     player.connected = false;
     player.socketId = '';
     this.socketPlayerMap.delete(socketId);
@@ -206,10 +257,28 @@ export class RoomManager {
     return { roomId, playerId, playerName: player.name };
   }
 
-  resumeSession(sessionId: string, socketId: string): { success: boolean; room?: RoomInfo; roomId?: string; playerId?: string; playerName?: string; sessionId?: string; error?: string } {
+  resumeSession(
+    sessionId: string,
+    socketId: string,
+    profileId: string | null = null
+  ): {
+    success: boolean;
+    room?: RoomInfo;
+    roomId?: string;
+    playerId?: string;
+    playerName?: string;
+    sessionId?: string;
+    replacedSocketId?: string;
+    error?: string;
+  } {
     const playerId = this.sessionPlayerMap.get(sessionId);
     if (!playerId) {
       return { success: false, error: 'Session expired' };
+    }
+
+    const currentPlayerId = this.socketPlayerMap.get(socketId);
+    if (currentPlayerId && currentPlayerId !== playerId) {
+      return { success: false, error: 'This connection is already in a room' };
     }
 
     const roomId = this.playerRoomMap.get(playerId);
@@ -225,7 +294,15 @@ export class RoomManager {
       return { success: false, error: 'Player not found' };
     }
 
+    if (profileId && player.profileId && player.profileId !== profileId) {
+      return { success: false, error: 'Session belongs to a different profile' };
+    }
+
     this.clearDisconnectTimer(playerId);
+    const replacedSocketId = player.socketId && player.socketId !== socketId ? player.socketId : undefined;
+    if (replacedSocketId) {
+      this.socketPlayerMap.delete(replacedSocketId);
+    }
     player.connected = true;
     player.socketId = socketId;
     this.socketPlayerMap.set(socketId, playerId);
@@ -237,6 +314,7 @@ export class RoomManager {
       playerId,
       playerName: player.name,
       sessionId: player.sessionId,
+      replacedSocketId,
     };
   }
 
@@ -273,6 +351,9 @@ export class RoomManager {
       this.sessionPlayerMap.delete(player.sessionId);
       if (player.socketId) {
         this.socketPlayerMap.delete(player.socketId);
+      }
+      if (player.profileId && this.profilePlayerMap.get(player.profileId) === playerId) {
+        this.profilePlayerMap.delete(player.profileId);
       }
     }
 

@@ -1,9 +1,10 @@
-﻿import type { Card } from './card.js';
+import type { Card } from './card.js';
 
 export type PlayerStatus = 'waiting' | 'ready' | 'playing' | 'finished';
 
 export interface Player {
   id: string;
+  profileId: string | null;
   sessionId: string;
   name: string;
   hand: Card[];
@@ -11,6 +12,10 @@ export interface Player {
   hasCalledUno: boolean;
   socketId: string;
   connected: boolean;
+}
+
+export interface ClientPlayer extends PublicPlayer {
+  hand: Card[];
 }
 
 export interface PublicPlayer {
@@ -32,6 +37,13 @@ export function toPublicPlayer(player: Player, playerIndex: number): PublicPlaye
     status: player.status,
     hasCalledUno: player.hasCalledUno,
     connected: player.connected,
+  };
+}
+
+export function toClientPlayer(player: Player, playerIndex: number): ClientPlayer {
+  return {
+    ...toPublicPlayer(player, playerIndex),
+    hand: player.hand,
   };
 }
 

@@ -1,4 +1,4 @@
-﻿import {
+import {
   ERROR_CODES,
   type ErrorCode,
   type ErrorPayload,
@@ -9,27 +9,54 @@
 import type { Server, Socket } from 'socket.io';
 import { gameManager } from '../game/GameManager.js';
 import { roomManager } from '../game/RoomManager.js';
+import { historyService } from '../history/index.js';
 import { logger, normalizeError } from '../utils/logger.js';
+import {
+  parseBoolean,
+  parseCardColor,
+  parseCardId,
+  parseCursor,
+  parseDirection,
+  parseHistoryLimit,
+  parseMatchId,
+  parsePlayerName,
+  parseRoomId,
+  parseSessionId,
+} from './validation.js';
 
 type GameSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 type Ack = ((response?: any) => void) | undefined;
 
 type HandlerContext = {
   socketId: string;
+  profileId?: string;
   playerId?: string;
   roomId?: string;
 };
 
-export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerToClientEvents>): void {
+export function registerSocketHandlers(
+  io: Server<ClientToServerEvents, ServerToClientEvents>,
+): void {
+  const revokeProfileBySocketId = new Map<string, () => void>();
+
   io.on('connection', (socket) => {
     logger.info('socket.connected', { socketId: socket.id });
+    let profileId: string | null = null;
+    const revokeProfile = () => {
+      profileId = null;
+      socket.data.profileId = null;
+      socket.emit('profileCredentialsRevoked');
+    };
+    revokeProfileBySocketId.set(socket.id, revokeProfile);
 
     const getPlayerId = () => roomManager.getPlayerIdBySocketId(socket.id);
-    const getRoomId = (playerId?: string) => (playerId ? roomManager.getRoomIdByPlayerId(playerId) : undefined);
+    const getRoomId = (playerId?: string) =>
+      playerId ? roomManager.getRoomIdByPlayerId(playerId) : undefined;
     const getContext = (): HandlerContext => {
       const playerId = getPlayerId();
       return {
         socketId: socket.id,
+        profileId: profileId ?? undefined,
         playerId,
         roomId: getRoomId(playerId),
       };
@@ -58,19 +85,22 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       ack?.({ success: false, error: message });
     };
 
-    const safeOn = (eventName: string, handler: (...args: any[]) => void) => {
+    const safeOn = (eventName: string, handler: (...args: any[]) => void | Promise<void>) => {
       (socket.on as any)(eventName, (...args: any[]) => {
-        const ack = typeof args[args.length - 1] === 'function' ? (args[args.length - 1] as Ack) : undefined;
-        try {
-          handler(...args);
-        } catch (error) {
-          logger.error('socket.unhandled_handler_error', {
-            ...getContext(),
-            event: eventName,
-            error: normalizeError(error),
+        const ack =
+          typeof args[args.length - 1] === 'function'
+            ? (args[args.length - 1] as Ack)
+            : undefined;
+        Promise.resolve()
+          .then(() => handler(...args))
+          .catch(error => {
+            logger.error('socket.unhandled_handler_error', {
+              ...getContext(),
+              event: eventName,
+              error: normalizeError(error),
+            });
+            emitInternalError(ack, eventName);
           });
-          emitInternalError(ack, eventName);
-        }
       });
     };
 
@@ -82,9 +112,24 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       }
     };
 
-    const endGameAndReturnToLobby = (roomId: string, reason: string) => {
+    const endGameAndReturnToLobby = (
+      roomId: string,
+      reason: string,
+      historyReason:
+        | 'player_exit'
+        | 'disconnect_timeout'
+        | 'host_abort'
+        | 'server_error' = 'server_error',
+      voluntaryPlayerId?: string
+    ) => {
       logger.info('game.return_to_lobby', { roomId, reason });
-      if (gameManager.getGame(roomId)) {
+      const gameState = gameManager.getGame(roomId);
+      if (gameState) {
+        if (gameState.phase === 'finished') {
+          historyService.observeGame(gameState);
+        } else {
+          historyService.interruptGame(gameState, historyReason, voluntaryPlayerId);
+        }
         gameManager.removeGame(roomId);
       }
       const roomInfo = roomManager.resetReady(roomId);
@@ -105,39 +150,172 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
       io.to(room.id).emit('gameStart');
       if (!broadcastGameState(io, room.id, gameState)) {
+        endGameAndReturnToLobby(room.id, 'server_error', 'server_error');
         return { success: false, error: 'Failed to synchronize game state' };
       }
 
       return { success: true };
     };
 
+    safeOn('initializeProfile', async (payload, callback) => {
+      if (getPlayerId()) {
+        callback({
+          success: false,
+          historyAvailable: historyService.isHistoryAvailable(),
+          error: 'Cannot switch player profile while in a room',
+        });
+        return;
+      }
+
+      const recoveryCode = typeof payload?.recoveryCode === 'string'
+        ? payload.recoveryCode
+        : undefined;
+      const result = await historyService.initializeProfile(recoveryCode);
+      profileId = result.success && result.profile ? result.profile.id : null;
+      socket.data.profileId = profileId;
+      callback(result);
+    });
+
+    safeOn('rotateRecoveryCode', async (_payload, callback) => {
+      if (!profileId || getPlayerId()) {
+        callback({ success: false, error: 'Recovery code can only be rotated from the lobby' });
+        return;
+      }
+      const rotatingProfileId = profileId;
+      const result = await historyService.rotateRecoveryCode(rotatingProfileId);
+      if (result.success) {
+        for (const [socketId, revoke] of revokeProfileBySocketId) {
+          if (
+            socketId !== socket.id &&
+            io.sockets.sockets.get(socketId)?.data.profileId === rotatingProfileId
+          ) {
+            revoke();
+          }
+        }
+      }
+      callback(result);
+    });
+
+    safeOn('getMatchHistory', async (payload, callback) => {
+      if (!profileId) {
+        callback({
+          success: false,
+          historyAvailable: false,
+          error: 'Persistent player profile is unavailable',
+        });
+        return;
+      }
+      const result = await historyService.listMatches(
+        profileId,
+        parseHistoryLimit(payload?.limit),
+        parseCursor(payload?.cursor)
+      );
+      callback({ success: true, ...result });
+    });
+
+    safeOn('getMatchDetails', async (payload, callback) => {
+      if (!profileId) {
+        callback({
+          success: false,
+          historyAvailable: false,
+          error: 'Persistent player profile is unavailable',
+        });
+        return;
+      }
+      const matchId = parseMatchId(payload?.matchId);
+      if (!matchId) {
+        callback({
+          success: false,
+          historyAvailable: historyService.isHistoryAvailable(),
+          error: 'Invalid match ID',
+        });
+        return;
+      }
+      const result = await historyService.getMatch(profileId, matchId);
+      callback({
+        success: Boolean(result.match),
+        match: result.match ?? undefined,
+        historyAvailable: result.historyAvailable,
+        error: result.match ? undefined : 'Match not found',
+      });
+    });
+
+    safeOn('getProfileStats', async (_payload, callback) => {
+      if (!profileId) {
+        callback({
+          success: false,
+          historyAvailable: false,
+          error: 'Persistent player profile is unavailable',
+        });
+        return;
+      }
+      const result = await historyService.getProfileStats(profileId);
+      callback({ success: true, ...result });
+    });
+
     safeOn('createRoom', (payload, callback) => {
-      logger.info('socket.create_room', { socketId: socket.id, playerName: payload.playerName });
-      const result = roomManager.createRoom(payload.playerName, socket.id);
+      const playerName = parsePlayerName(payload?.playerName);
+      if (!playerName) {
+        emitError(
+          ERROR_CODES.CREATE_ROOM_FAILED,
+          'Player name must be between 1 and 20 characters',
+        );
+        callback({ success: false, error: 'Invalid player name' });
+        return;
+      }
+      logger.info('socket.create_room', { socketId: socket.id, playerName });
+      const result = roomManager.createRoom(playerName, socket.id, profileId);
+      if (!result.success || !result.room) {
+        emitError(ERROR_CODES.CREATE_ROOM_FAILED, result.error ?? 'Failed to create room');
+        callback(result);
+        return;
+      }
+      historyService.updateProfileDisplayName(profileId, playerName);
       socket.join(result.room.roomId);
       callback(result);
     });
 
     safeOn('joinRoom', (payload, callback) => {
-      logger.info('socket.join_room', { socketId: socket.id, roomId: payload.roomId, playerName: payload.playerName });
-      const result = roomManager.joinRoom(payload.roomId, payload.playerName, socket.id);
+      const playerName = parsePlayerName(payload?.playerName);
+      const roomId = parseRoomId(payload?.roomId);
+      if (!playerName || !roomId) {
+        emitError(
+          ERROR_CODES.JOIN_ROOM_FAILED,
+          'Enter a valid player name and 6-character room ID',
+        );
+        callback({ success: false, error: 'Invalid room ID or player name' });
+        return;
+      }
+      logger.info('socket.join_room', { socketId: socket.id, roomId, playerName });
+      const result = roomManager.joinRoom(roomId, playerName, socket.id, profileId);
       if (result.success && result.room && result.playerId) {
-        socket.join(payload.roomId);
-        io.to(payload.roomId).emit('roomUpdate', result.room);
-        socket.to(payload.roomId).emit('playerJoined', { playerId: result.playerId, name: payload.playerName });
+        historyService.updateProfileDisplayName(profileId, playerName);
+        socket.join(roomId);
+        io.to(roomId).emit('roomUpdate', result.room);
+        socket.to(roomId).emit('playerJoined', { playerId: result.playerId, name: playerName });
       } else if (!result.success) {
-        emitError(ERROR_CODES.JOIN_ROOM_FAILED, result.error ?? 'Failed to join room', { roomId: payload.roomId });
+        emitError(ERROR_CODES.JOIN_ROOM_FAILED, result.error ?? 'Failed to join room', { roomId });
       }
       callback(result);
     });
 
     safeOn('resumeSession', (payload, callback) => {
       logger.info('socket.resume_session', { socketId: socket.id });
-      const result = roomManager.resumeSession(payload.sessionId, socket.id);
+      const sessionId = parseSessionId(payload?.sessionId);
+      if (!sessionId) {
+        callback({ success: false, error: 'Invalid session' });
+        return;
+      }
+      const result = roomManager.resumeSession(sessionId, socket.id, profileId);
       if (!result.success || !result.playerId || !result.roomId) {
         emitError(ERROR_CODES.RESUME_SESSION_FAILED, result.error ?? 'Failed to restore session');
         callback({ success: false, error: result.error ?? 'Failed to restore session' });
         return;
+      }
+
+      if (result.replacedSocketId) {
+        io.to(result.replacedSocketId).emit('sessionReplaced');
+        io.sockets.sockets.get(result.replacedSocketId)?.disconnect(true);
       }
 
       socket.join(result.roomId);
@@ -164,7 +342,9 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       callback({
         success: true,
         room: gameState ? undefined : result.room,
-        gameState: gameState ? gameManager.toClientGameState(gameState, result.playerId) : undefined,
+        gameState: gameState
+          ? gameManager.toClientGameState(gameState, result.playerId)
+          : undefined,
         playerId: result.playerId,
         sessionId: result.sessionId,
       });
@@ -188,11 +368,15 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       const roomInfo = roomManager.getRoomInfo(roomId);
       if (roomInfo) {
         if (gameManager.getGame(roomId)) {
-          endGameAndReturnToLobby(roomId, 'player_left');
+          endGameAndReturnToLobby(roomId, 'player_left', 'player_exit', playerId);
         } else {
           io.to(roomId).emit('roomUpdate', roomInfo);
         }
       } else if (gameManager.getGame(roomId)) {
+        const gameState = gameManager.getGame(roomId);
+        if (gameState) {
+          historyService.interruptGame(gameState, 'player_exit', playerId);
+        }
         gameManager.removeGame(roomId);
       }
 
@@ -201,7 +385,12 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     });
 
     safeOn('ready', (payload) => {
-      logger.info('socket.ready', { ...getContext(), ready: payload.ready });
+      const ready = parseBoolean(payload?.ready);
+      if (ready === null) {
+        emitError(ERROR_CODES.INVALID_PAYLOAD, 'Ready state must be a boolean');
+        return;
+      }
+      logger.info('socket.ready', { ...getContext(), ready });
       const playerId = getPlayerId();
       if (!playerId) {
         return;
@@ -209,7 +398,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
       const roomId = roomManager.getRoomIdByPlayerId(playerId);
       if (roomId) {
-        const roomInfo = roomManager.setReady(playerId, payload.ready);
+        const roomInfo = roomManager.setReady(playerId, ready);
         if (roomInfo) {
           io.to(roomId).emit('roomUpdate', roomInfo);
         }
@@ -285,11 +474,15 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
       }
 
       if (Array.from(room.players.values()).some(player => !player.connected)) {
-        emitError(ERROR_CODES.PLAY_AGAIN_FAILED, 'Cannot start rematch while a player is disconnected');
+        emitError(
+          ERROR_CODES.PLAY_AGAIN_FAILED,
+          'Cannot start rematch while a player is disconnected',
+        );
         callback({ success: false, error: 'Cannot start rematch while a player is disconnected' });
         return;
       }
 
+      historyService.observeGame(existing);
       const result = startNewGame(roomId, room.hostId);
       if (!result.success) {
         callback({ success: false, error: result.error ?? 'Failed to start rematch' });
@@ -328,12 +521,18 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         return;
       }
 
-      endGameAndReturnToLobby(roomId, 'host_return');
+      endGameAndReturnToLobby(roomId, 'host_return', 'host_abort', playerId);
       callback({ success: true });
     });
 
     safeOn('chooseDirection', (payload, callback) => {
-      logger.info('socket.choose_direction', { ...getContext(), direction: payload.direction });
+      const direction = parseDirection(payload?.direction);
+      if (direction === null) {
+        emitError(ERROR_CODES.INVALID_PAYLOAD, 'Direction must be clockwise or counterclockwise');
+        callback({ success: false, error: 'Invalid direction' });
+        return;
+      }
+      logger.info('socket.choose_direction', { ...getContext(), direction });
       const playerId = getPlayerId();
       if (!playerId) {
         emitError(ERROR_CODES.CHOOSE_DIRECTION_FAILED, 'Not in a game');
@@ -355,7 +554,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         return;
       }
 
-      const result = gameManager.chooseDirection(gameState, playerId, payload.direction);
+      const result = gameManager.chooseDirection(gameState, playerId, direction);
       if (!result.success) {
         emitError(ERROR_CODES.CHOOSE_DIRECTION_FAILED, result.error ?? 'Choose direction failed');
         callback(result);
@@ -371,7 +570,14 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     });
 
     safeOn('playCard', (payload, callback) => {
-      logger.info('socket.play_card', { ...getContext(), cardId: payload.cardId, chosenColor: payload.chosenColor });
+      const cardId = parseCardId(payload?.cardId);
+      const chosenColor = parseCardColor(payload?.chosenColor);
+      if (!cardId || (payload?.chosenColor !== undefined && !chosenColor)) {
+        emitError(ERROR_CODES.INVALID_PAYLOAD, 'Invalid card or chosen color');
+        callback({ success: false, error: 'Invalid card payload' });
+        return;
+      }
+      logger.info('socket.play_card', { ...getContext(), cardId, chosenColor });
       const playerId = getPlayerId();
       if (!playerId) {
         emitError(ERROR_CODES.PLAY_CARD_FAILED, 'Not in a game');
@@ -393,7 +599,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         return;
       }
 
-      const result = gameManager.playCard(gameState, playerId, payload.cardId, payload.chosenColor);
+      const result = gameManager.playCard(gameState, playerId, cardId, chosenColor);
       if (!result.success) {
         emitError(ERROR_CODES.PLAY_CARD_FAILED, result.error ?? 'Play card failed');
         callback(result);
@@ -511,7 +717,13 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     });
 
     safeOn('challenge', (payload, callback) => {
-      logger.info('socket.challenge', { ...getContext(), challenge: payload.challenge });
+      const challenge = parseBoolean(payload?.challenge);
+      if (challenge === null) {
+        emitError(ERROR_CODES.INVALID_PAYLOAD, 'Challenge decision must be a boolean');
+        callback({ success: false, error: 'Invalid challenge decision' });
+        return;
+      }
+      logger.info('socket.challenge', { ...getContext(), challenge });
       const playerId = getPlayerId();
       if (!playerId) {
         emitError(ERROR_CODES.CHALLENGE_FAILED, 'Not in a game');
@@ -533,7 +745,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
         return;
       }
 
-      const result = gameManager.handleChallenge(gameState, playerId, payload.challenge);
+      const result = gameManager.handleChallenge(gameState, playerId, challenge);
       if (!result.success) {
         emitError(ERROR_CODES.CHALLENGE_FAILED, result.error ?? 'Challenge failed');
         callback(result);
@@ -549,6 +761,7 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
     });
 
     safeOn('disconnect', () => {
+      revokeProfileBySocketId.delete(socket.id);
       logger.info('socket.disconnected', { socketId: socket.id });
       const disconnected = roomManager.markDisconnected(socket.id);
       if (!disconnected) {
@@ -583,14 +796,16 @@ export function registerSocketHandlers(io: Server<ClientToServerEvents, ServerTo
 
         const roomId = roomManager.removePlayer(disconnected.playerId);
         if (!roomId) {
-          if (gameManager.getGame(disconnected.roomId)) {
+          const abandonedGame = gameManager.getGame(disconnected.roomId);
+          if (abandonedGame) {
+            historyService.interruptGame(abandonedGame, 'disconnect_timeout');
             gameManager.removeGame(disconnected.roomId);
           }
           return;
         }
 
         if (gameManager.getGame(roomId)) {
-          endGameAndReturnToLobby(roomId, 'player_left');
+          endGameAndReturnToLobby(roomId, 'player_left', 'disconnect_timeout');
         } else {
           emitRoomUpdate(roomId);
         }
@@ -606,6 +821,7 @@ function broadcastGameState(
   roomId: string,
   gameState: GameState
 ): boolean {
+  historyService.observeGame(gameState);
   try {
     for (const player of gameState.players) {
       if (!player.connected || !player.socketId) {
@@ -635,4 +851,3 @@ function broadcastGameState(
     return false;
   }
 }
-

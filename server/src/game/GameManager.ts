@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   Card,
   CardColor,
   ClientGameState,
@@ -8,6 +8,7 @@
   Player,
 } from '@uno-web/shared';
 import { toClientGameState as mapToClientGameState } from '@uno-web/shared';
+import { randomUUID } from 'crypto';
 import { canPlayCard, createDeck, shuffleDeck } from './DeckManager.js';
 
 const HAND_SIZE = 7;
@@ -19,6 +20,7 @@ export class GameManager {
   private games: Map<string, GameState> = new Map();
 
   createGame(roomId: string, players: Player[], hostId: string): GameState {
+    const startedAt = Date.now();
     let deck = shuffleDeck(createDeck());
     const dealerIndex = this.determineDealerIndex(deck, players.length);
     deck = shuffleDeck(deck);
@@ -57,7 +59,9 @@ export class GameManager {
     }
 
     const state: GameState = {
+      matchId: randomUUID(),
       roomId,
+      startedAt,
       phase: 'playing',
       players: gamePlayers,
       currentPlayerIndex: dealerIndex,
@@ -76,15 +80,21 @@ export class GameManager {
       winnerId: null,
       isDraw: false,
       reshuffleCount: 0,
+      eventSequence: 0,
       eventLog: [],
     };
 
-    this.appendLog(state, `Game started with ${state.players.length} players.`);
-    this.appendLog(state, `${state.players[dealerIndex].name} is the dealer and will choose direction.`);
+    this.appendLog(state, `Game started with ${state.players.length} players.`, 'game_started');
+    this.appendLog(
+      state,
+      `${state.players[dealerIndex].name} is the dealer and will choose direction.`,
+      'dealer_selected',
+      state.players[dealerIndex].id
+    );
     if (firstCard) {
-      this.appendLog(state, `Top card is ${this.formatCard(firstCard)}.`);
+      this.appendLog(state, `Top card is ${this.formatCard(firstCard)}.`, 'top_card');
       if (firstCard.value === 'Draw2') {
-        this.appendLog(state, 'Opening card adds a +2 penalty to the first turn.');
+        this.appendLog(state, 'Opening card adds a +2 penalty to the first turn.', 'penalty');
       }
     }
 
@@ -98,6 +108,10 @@ export class GameManager {
 
   removeGame(roomId: string): void {
     this.games.delete(roomId);
+  }
+
+  getGames(): GameState[] {
+    return Array.from(this.games.values());
   }
 
   drawCard(state: GameState, playerId: string): { success: boolean; error?: string; card?: Card } {
@@ -141,7 +155,7 @@ export class GameManager {
       this.syncUnoStatus(player);
       state.pendingPenalty = 0;
       state.lastDrawnCardId = null;
-      this.appendLog(state, `${player.name} drew ${penalty} penalty cards.`);
+      this.appendLog(state, `${player.name} drew ${penalty} penalty cards.`, 'draw', player.id);
       this.advanceTurn(state);
       return { success: true, card: cards[0] };
     }
@@ -161,13 +175,18 @@ export class GameManager {
     this.syncUnoStatus(player);
     state.hasDrawnThisTurn = true;
     state.lastDrawnCardId = card.id;
-    this.appendLog(state, `${player.name} drew 1 card.`);
+    this.appendLog(state, `${player.name} drew 1 card.`, 'draw', player.id);
 
     const topCard = state.discardPile[state.discardPile.length - 1];
     if (!canPlayCard(card, topCard, state.activeColor)) {
       state.hasDrawnThisTurn = false;
       state.lastDrawnCardId = null;
-      this.appendLog(state, `${player.name} could not play the drawn card and passed the turn.`);
+      this.appendLog(
+        state,
+        `${player.name} could not play the drawn card and passed the turn.`,
+        'pass',
+        player.id
+      );
       this.advanceTurn(state);
     }
 
@@ -243,7 +262,12 @@ export class GameManager {
       state.activeColor = chosenColor ?? null;
     }
 
-    this.appendLog(state, `${player.name} played ${this.formatCard(card, chosenColor)}.`);
+    this.appendLog(
+      state,
+      `${player.name} played ${this.formatCard(card, chosenColor)}.`,
+      'play_card',
+      player.id
+    );
 
     if (player.hand.length === 0) {
       state.phase = 'finished';
@@ -251,7 +275,7 @@ export class GameManager {
       state.isDraw = false;
       state.pendingPenalty = 0;
       state.challengeState = null;
-      this.appendLog(state, `${player.name} wins the game.`);
+      this.appendLog(state, `${player.name} wins the game.`, 'game_won', player.id);
       return { success: true };
     }
 
@@ -309,7 +333,7 @@ export class GameManager {
 
     if (player.hand.length === 1) {
       player.hasCalledUno = true;
-      this.appendLog(state, `${player.name} called UNO.`);
+      this.appendLog(state, `${player.name} called UNO.`, 'uno', player.id);
       return { success: true };
     }
 
@@ -351,7 +375,12 @@ export class GameManager {
       state.pendingPenalty = 0;
       state.challengeState.resolved = true;
       state.challengeState.challengeSuccess = false;
-      this.appendLog(state, `${challenger.name} accepted the challenge and drew ${penalty} cards.`);
+      this.appendLog(
+        state,
+        `${challenger.name} accepted the challenge and drew ${penalty} cards.`,
+        'challenge_accepted',
+        challenger.id
+      );
       this.advanceTurn(state);
       return { success: true };
     }
@@ -375,7 +404,12 @@ export class GameManager {
       this.syncUnoStatus(wildPlayer);
       state.pendingPenalty = 0;
       state.challengeState.challengeSuccess = true;
-      this.appendLog(state, `${challenger.name} challenged successfully. ${wildPlayer.name} drew 4 cards.`);
+      this.appendLog(
+        state,
+        `${challenger.name} challenged successfully. ${wildPlayer.name} drew 4 cards.`,
+        'challenge_succeeded',
+        challenger.id
+      );
     } else {
       const cards = this.drawCards(state, 6);
       if (this.isFinished(state)) {
@@ -385,7 +419,12 @@ export class GameManager {
       this.syncUnoStatus(challenger);
       state.pendingPenalty = 0;
       state.challengeState.challengeSuccess = false;
-      this.appendLog(state, `${challenger.name} challenged unsuccessfully and drew 6 cards.`);
+      this.appendLog(
+        state,
+        `${challenger.name} challenged unsuccessfully and drew 6 cards.`,
+        'challenge_failed',
+        challenger.id
+      );
     }
 
     this.advanceTurn(state);
@@ -415,7 +454,12 @@ export class GameManager {
 
     state.direction = direction;
     state.directionChosen = true;
-    this.appendLog(state, `${state.players[state.currentPlayerIndex].name} set direction to ${direction === 1 ? 'clockwise' : 'counterclockwise'}.`);
+    this.appendLog(
+      state,
+      `${state.players[state.currentPlayerIndex].name} set direction to ${direction === 1 ? 'clockwise' : 'counterclockwise'}.`,
+      'direction_chosen',
+      playerId
+    );
 
     if (!state.initialEffectApplied) {
       const firstCard = state.discardPile[state.discardPile.length - 1];
@@ -462,7 +506,7 @@ export class GameManager {
     const player = state.players[state.currentPlayerIndex];
     state.hasDrawnThisTurn = false;
     state.lastDrawnCardId = null;
-    this.appendLog(state, `${player.name} ended the turn.`);
+    this.appendLog(state, `${player.name} ended the turn.`, 'turn_ended', player.id);
     this.advanceTurn(state);
     return { success: true };
   }
@@ -493,7 +537,7 @@ export class GameManager {
           state.isDraw = true;
           state.pendingPenalty = 0;
           state.challengeState = null;
-          this.appendLog(state, 'No cards left to draw. Game ended in a draw.');
+          this.appendLog(state, 'No cards left to draw. Game ended in a draw.', 'game_draw');
           break;
         }
       }
@@ -553,9 +597,18 @@ export class GameManager {
     return candidates[0] ?? 0;
   }
 
-  private appendLog(state: GameState, message: string): void {
+  private appendLog(
+    state: GameState,
+    message: string,
+    type = 'system',
+    actorPlayerId?: string
+  ): void {
+    state.eventSequence += 1;
     const entry: GameLogEntry = {
-      id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: `${state.matchId}_${state.eventSequence}`,
+      sequence: state.eventSequence,
+      type,
+      actorPlayerId,
       createdAt: Date.now(),
       message,
     };

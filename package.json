@@ -15,7 +15,8 @@
     "dev:shared": "npm run dev --workspace=shared",
     "build": "npm run build --workspace=shared && npm run build --workspace=client && npm run build --workspace=server",
     "start": "npm run start --workspace=server",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "db:migrate": "npm run db:migrate --workspace=server"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
